@@ -1,0 +1,2417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Coach Utility</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/*CSS Custom Properties*/
+:root {
+  --bg: #0e0e0f; --surface: #161618; --surface2: #1e1e21; --surface3: #27272b;
+  --border: #2e2e33; --border2: #3a3a40; --gold: #c9a84c; --gold-light: #e8c96d;
+  --gold-dim: #7a6430; --cream: #f0e6c8; --text: #ddd8cc; --text-muted: #7a7870;
+  --text-dim: #4a4844; --win: #3d7a4a; --draw: #5a6a7a; --loss: #7a3d3d;
+  --radius: 6px; --app-scale: 1;
+}
+
+/*Theme Overrides*/
+body.theme-light {
+  --bg: #f4f4f5; --surface: #ffffff; --surface2: #f4f4f5; --surface3: #e4e4e7;
+  --border: #e4e4e7; --border2: #d4d4d8; --text: #18181b; --text-muted: #52525b;
+  --text-dim: #a1a1aa; --cream: #18181b; --gold: #b48520; --gold-light: #dca52d;
+}
+body.theme-glass {
+  --bg: transparent; --surface: rgba(30,30,46,0.5); --surface2: rgba(49,50,68,0.5);
+  --surface3: rgba(69,71,90,0.5); --border: rgba(255,255,255,0.1);
+  --border2: rgba(255,255,255,0.15); --text: #bac2de; --text-muted: #a6adc8;
+  --cream: #cdd6f4; --gold: #f9e2af; --gold-light: #f38ba8;
+}
+
+/*Animated Gradient Background*/
+.glass-bg {
+  position: fixed; inset: 0; z-index: -1; display: none;
+  background: radial-gradient(ellipse at 0% 0%, rgba(203,166,247,0.32) 0%, transparent 52%),
+              radial-gradient(ellipse at 100% 100%, rgba(137,180,250,0.28) 0%, transparent 52%),
+              radial-gradient(ellipse at 100% 0%, rgba(243,139,168,0.18) 0%, transparent 45%),
+              linear-gradient(145deg, #1a1535 0%, #1e1e2e 48%, #0e1825 100%);
+}
+body.theme-glass .glass-bg { display: block; }
+body.theme-glass.glass-animated .glass-bg {
+  background: linear-gradient(145deg, #1a1535 0%, #1e1e2e 48%, #0e1825 100%);
+}
+
+@keyframes accent1 {
+  0%,100% { transform: translate(0%,0%) scale(1); opacity:1; }
+  30%     { transform: translate(8%,12%) scale(1.12); opacity:0.85; }
+  60%     { transform: translate(-6%,5%) scale(0.92); opacity:1; }
+}
+@keyframes accent2 {
+  0%,100% { transform: translate(0%,0%) scale(1); opacity:1; }
+  35%     { transform: translate(-10%,-8%) scale(1.1); opacity:0.8; }
+  65%     { transform: translate(7%,10%) scale(0.94); opacity:1; }
+}
+@keyframes accent3 {
+  0%,100% { transform: translate(0%,0%) scale(1); opacity:0.9; }
+  40%     { transform: translate(6%,-10%) scale(1.08); opacity:1; }
+  70%     { transform: translate(-8%,-4%) scale(0.96); opacity:0.85; }
+}
+
+.glass-bg .blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0; pointer-events: none; }
+.glass-bg .blob1 { width:65%; height:65%; top:-15%; left:-15%; background: radial-gradient(ellipse at center, rgba(203,166,247,0.38) 0%, transparent 70%); }
+.glass-bg .blob2 { width:60%; height:60%; bottom:-15%; right:-15%; background: radial-gradient(ellipse at center, rgba(137,180,250,0.32) 0%, transparent 70%); }
+.glass-bg .blob3 { width:55%; height:55%; top:-10%; right:-10%; background: radial-gradient(ellipse at center, rgba(243,139,168,0.22) 0%, transparent 70%); }
+body.theme-glass.glass-animated .glass-bg .blob { opacity: 1; }
+body.theme-glass.glass-animated .glass-bg .blob1 { animation: accent1 5.6s ease-in-out infinite; }
+body.theme-glass.glass-animated .glass-bg .blob2 { animation: accent2 7.2s ease-in-out infinite; }
+body.theme-glass.glass-animated .glass-bg .blob3 { animation: accent3 8.8s ease-in-out infinite; }
+
+/*Reset and base*/
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; height: 100vh; overflow: hidden; zoom: var(--app-scale); display: flex; flex-direction: column; }
+
+/*Layout*/
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 64px; flex-shrink: 0; position: sticky; top: 0; z-index: 100; }
+.app-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.main { flex: 1; overflow-y: auto; padding: 24px; min-height: 0; }
+.view { display: none; }
+.view.active { display: block; }
+
+/*Logo*/
+.logo-container { display: flex; align-items: center; gap: 10px; }
+.logo-icon { font-size: 2.3rem; line-height: 1; flex-shrink: 0; color: var(--gold); margin-left: -2px; }
+.logo-text-wrap { display: flex; flex-direction: column; justify-content: center; gap: 1px; margin-left: -5px; }
+.logo-text { font-size: 1.05rem; font-weight: 700; color: var(--gold); letter-spacing: -0.2px; line-height: 1.2; position: relative; top: -2px; left: -1px; }
+.attribution { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.2px; line-height: 1.2; position: relative; top: -1px; cursor: default; user-select: none; transition: color 0.2s; }
+.attribution:hover { color: var(--text-muted); }
+
+/*Header Timer*/
+.header-timer { display:none; align-items:center; gap:12px; margin-left:auto; padding: 0 4px; }
+.header-timer.visible { display:flex; }
+.timer-display { font-family:'DM Sans',sans-serif; font-size:1rem; font-weight:600; color:var(--gold); letter-spacing:0.5px; background:var(--surface2); border:1px solid var(--border2); border-radius:6px; padding:5px 16px; min-width:88px; text-align:center; transition:color 0.3s, border-color 0.3s; }
+.timer-display.urgent { color:#c06060; border-color:#5a2020; animation: timerPulse 1s ease-in-out infinite; }
+.timer-display.expired { color:#c06060; border-color:#7a2020; }
+@keyframes timerPulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+.timer-label { font-size:0.62rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; font-family:'DM Sans',sans-serif; text-align:center; }
+
+/*Sidebar*/
+.sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; transition: width 0.22s ease, padding 0.22s ease; flex-shrink: 0; }
+.sidebar.collapsed { width: 0; overflow: hidden; border-right-width: 0; }
+.sidebar-section { padding: 16px 12px; }
+.sidebar-btn { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border-radius: var(--radius); border: none; background: transparent; color: var(--text-muted); cursor: pointer; text-align: left; margin-bottom: 4px; white-space: nowrap; }
+.sidebar-btn.active { background: var(--surface3); color: var(--gold); }
+.burger-btn { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 6px 8px; border-radius: var(--radius); display: flex; flex-direction: column; gap: 5px; transition: color 0.15s; flex-shrink: 0; margin-right: 12px; }
+.burger-btn:hover { color: var(--gold); }
+.burger-bar { display: block; width: 20px; height: 2px; background: currentColor; border-radius: 2px; transition: transform 0.2s, opacity 0.2s; }
+.burger-btn.open .burger-bar:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.burger-btn.open .burger-bar:nth-child(2) { opacity: 0; }
+.burger-btn.open .burger-bar:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+/*Cards and Tables*/
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+table { width: 100%; border-collapse: collapse; }
+thead th { text-align: left; padding: 10px; font-size: 0.7rem; color: var(--text-dim); border-bottom: 1px solid var(--border); text-transform: uppercase; }
+td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+.td-mono { font-family: 'DM Mono', monospace; }
+.db-table-wrap { overflow-y: auto; max-height: 462px; border-radius: 4px; }
+.db-table-wrap.needs-scroll { overflow-y: scroll; }
+.db-table { width: 100%; border-collapse: collapse; }
+.db-table thead th { position: sticky; top: 0; z-index: 2; text-align: left; padding: 10px; font-size: 0.7rem; color: var(--text-dim); border-bottom: 1px solid var(--border); text-transform: uppercase; background: #161618; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+body.theme-light .db-table thead th { background: #ffffff; }
+body.theme-glass .db-table thead th { background: #1a1a28; }
+
+/*Buttons*/
+.btn { display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; border-radius: var(--radius); border: none; font-size: 0.8rem; cursor: pointer; gap: 4px; }
+.btn-gold { background: var(--gold); color: #1a1400; font-weight: 600; }
+.btn-outline { background: transparent; border: 1px solid var(--border2); color: var(--text); }
+.btn-danger { background: transparent; border: 1px solid #5a2020; color: #c06060; }
+.btn-import { background: var(--surface2); border: 1px solid var(--gold-dim); color: var(--gold); font-weight: 500; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
+.btn-import:hover { background: var(--surface3); border-color: var(--gold); box-shadow: 0 0 0 1px rgba(201,168,76,0.15); }
+.btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+.btn-copy { background: transparent; border: 1px solid var(--gold-dim); color: var(--gold); font-weight: 500; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
+.btn-copy:hover { background: rgba(201,168,76,0.08); border-color: var(--gold); box-shadow: 0 0 0 1px rgba(201,168,76,0.12); }
+.btn-result-active { background: rgba(201,168,76,0.12) !important; border-color: var(--gold) !important; color: var(--gold) !important; font-weight: 500 !important; box-shadow: 0 0 0 1px rgba(201,168,76,0.15); }
+.btn-reset { background: transparent; border: 1px solid rgba(180,100,50,0.45); color: #c87040; font-weight: 500; transition: background 0.15s, border-color 0.15s; }
+.btn-reset:hover { background: rgba(180,100,50,0.1); border-color: rgba(200,120,64,0.7); color: #e08850; }
+.btn-confirm-del { background:#5a1f1f; border:1px solid #7a2a2a; color:#e08080; font-weight:600; transition:background 0.15s, border-color 0.15s; }
+.btn-confirm-del:hover { background:#6a2424; border-color:#9a3a3a; color:#f09090; }
+.home-btn { transition: border-color 0.2s, box-shadow 0.2s !important; }
+.home-btn:hover { border-color: var(--gold) !important; box-shadow: 0 0 0 1px var(--gold) !important; }
+
+/*Forms and Inputs*/
+.form-group { margin-bottom: 15px; }
+label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; }
+select, input[type="range"], .input-field { width: 100%; padding: 8px; border-radius: 4px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.scale-slider-wrap { display: flex; align-items: center; width: 100%; height: 38px; padding: 0 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; }
+.scale-slider-wrap input[type="range"] { flex: 1; background: var(--border2); margin: 0; }
+input[type="range"] { -webkit-appearance: none; height: 6px; background: var(--surface3); border-radius: 5px; border: none; outline: none; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; background: var(--gold); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg); box-shadow: 0 0 10px rgba(201,168,76,0.3); transition: transform 0.1s; }
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); background: var(--gold-light); }
+
+/*Misc UI Pieces*/
+.badge { background: var(--surface3); color: var(--gold); padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-icon { font-size: 3rem; margin-bottom: 15px; opacity: 0.5; }
+.empty-msg { font-size: 1.2rem; font-weight: 600; color: var(--cream); margin-bottom: 8px; }
+.empty-sub { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; }
+
+/*Home Cards*/
+.home-card { background: var(--surface); border: 1px solid var(--border); padding: 40px 30px; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); text-align: center; }
+.home-card:hover { border-color: var(--gold); transform: translateY(-8px); background: var(--surface2); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+.home-card-icon { font-size: 3rem; margin-bottom: 20px; display: block; }
+.home-card h3 { color: var(--gold); margin-bottom: 12px; font-size: 1.25rem; }
+.home-card p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; }
+
+/*Guest Restriction Badge*/
+.guest-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(192,96,96,0.1); border: 1px solid rgba(192,96,96,0.3);
+  color: #c06060; border-radius: 12px; font-size: 0.65rem;
+  font-weight: 600; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/*Settings*/
+.settings-section { margin-bottom: 16px; }
+.settings-section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.settings-section-icon { font-size: 0.9rem; opacity: 0.8; }
+.settings-section-title { font-size: 0.92rem; font-weight: 700; color: var(--cream); letter-spacing: -0.1px; }
+.settings-action-row { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; }
+.settings-action-label { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+.settings-action-desc { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+.settings-scroll { overflow-y: auto; max-height: 515px; padding-right: 4px; }
+.settings-scroll::-webkit-scrollbar { width: 6px; }
+.settings-scroll::-webkit-scrollbar-track { background: transparent; }
+.settings-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+.settings-scroll::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+
+/*School Selector*/
+.school-selector { display: flex; gap: 10px; flex-wrap: wrap; }
+.school-card { flex: 1; min-width: 140px; display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: border-color 0.18s, box-shadow 0.18s, background 0.18s; text-align: left; }
+.school-card:hover { border-color: var(--gold-dim); background: var(--surface3); }
+.school-card-logo { width: 40px; height: 40px; object-fit: contain; border-radius: 4px; flex-shrink: 0; background: transparent; }
+.school-card-logo-fallback { width: 40px; height: 40px; border-radius: 4px; flex-shrink: 0; background: var(--surface3); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.school-card-name { font-size: 0.85rem; font-weight: 700; color: var(--cream); line-height: 1.2; }
+.school-card-coach { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+/*Import Source Buttons*/
+.import-source-btn { display:flex; align-items:center; gap:14px; width:100%; padding:14px 16px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; cursor:pointer; text-align:left; transition:border-color 0.15s, background 0.15s, box-shadow 0.15s; }
+.import-source-btn:hover { background:var(--surface3); border-color:var(--gold-dim); box-shadow:0 0 0 1px rgba(201,168,76,0.1); }
+.import-source-icon { font-size:1.4rem; flex-shrink:0; }
+.import-source-label { font-size:0.88rem; font-weight:600; color:var(--cream); }
+.import-source-desc { font-size:0.72rem; color:var(--text-muted); margin-top:2px; }
+
+/*Participant List*/
+.participant-list-scroll::-webkit-scrollbar { width: 6px; }
+.participant-list-scroll::-webkit-scrollbar-track { background: var(--surface2); border-radius: 3px; }
+.participant-list-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+.participant-list-scroll::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+.db-table-wrap::-webkit-scrollbar { width: 6px; }
+.db-table-wrap::-webkit-scrollbar-track { background: var(--surface2); border-radius: 3px; }
+.db-table-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+.db-table-wrap::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+
+/*Modal Animations*/
+@keyframes modalIn { from { opacity:0; transform: translateY(-12px) scale(0.97); } to { opacity:1; transform: translateY(0) scale(1); } }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-5px)} 80%{transform:translateX(5px)} }
+@keyframes pinSuccess { 0%{color:var(--gold)} 50%{color:#7fff7f} 100%{color:var(--gold)} }
+
+/*PIN Modal*/
+.pin-overlay { position:fixed; inset:0; z-index:4000; background:rgba(0,0,0,0.72); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+.pin-overlay.open { opacity:1; pointer-events:all; }
+.pin-dialog { background:var(--surface); border:1px solid var(--border2); border-radius:14px; padding:32px 28px 28px; width:320px; box-shadow:0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.08); animation: modalIn 0.25s ease; position:relative; }
+.pin-dialog::before { content:''; position:absolute; inset:-1px; border-radius:15px; background:linear-gradient(135deg, rgba(201,168,76,0.15) 0%, transparent 50%); pointer-events:none; border:1px solid transparent; }
+.pin-header { text-align:center; margin-bottom:24px; }
+.pin-icon { font-size:2rem; margin-bottom:10px; display:block; filter:drop-shadow(0 0 8px rgba(201,168,76,0.3)); }
+.pin-title { font-size:1.1rem; color:var(--cream); font-weight:700; letter-spacing:-0.2px; }
+.pin-subtitle { font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:2px; margin-top:6px; font-weight:500; }
+.pin-dots { display:flex; justify-content:center; gap:12px; margin-bottom:6px; }
+.pin-dot { width:12px; height:12px; border-radius:50%; border:2px solid var(--border2); background:transparent; transition:background 0.15s, border-color 0.15s, transform 0.15s; }
+.pin-dot.filled { background:var(--gold); border-color:var(--gold); transform:scale(1.15); }
+.pin-error-msg { text-align:center; font-size:0.72rem; color:#c06060; letter-spacing:0.5px; min-height:18px; margin-bottom:14px; }
+.pin-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.pin-key { background:var(--surface2); border:1px solid var(--border); color:var(--cream); border-radius:8px; font-size:1.15rem; font-weight:600; padding:14px 0; cursor:pointer; transition:background 0.12s, border-color 0.12s, transform 0.08s; user-select:none; }
+.pin-key:hover { background:var(--surface3); border-color:var(--border2); }
+.pin-key:active { transform:scale(0.94); }
+.pin-key.pin-clear { color:var(--text-muted); font-size:1rem; font-weight:400; }
+.pin-key.pin-enter { background:var(--gold); color:#1a1400; font-weight:700; border-color:var(--gold); font-size:0.75rem; letter-spacing:1.5px; text-transform:uppercase; }
+.pin-key.pin-enter:hover { background:var(--gold-light); }
+.pin-key.pin-enter:disabled { opacity:0.4; cursor:not-allowed; }
+.pin-dots.shake { animation: shake 0.4s ease; }
+.pin-cancel { display:block; width:100%; margin-top:10px; background:transparent; border:none; color:var(--text-dim); font-size:0.75rem; text-transform:uppercase; letter-spacing:1px; cursor:pointer; padding:6px; }
+.pin-cancel:hover { color:var(--text-muted); }
+
+/*Player Add/Edit Modal*/
+.player-overlay { position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.72); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+.player-overlay.open { opacity:1; pointer-events:all; }
+.player-dialog { background:var(--surface); border:1px solid var(--border2); border-radius:14px; padding:28px 28px 24px; width:380px; box-shadow:0 24px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,168,76,0.06); animation: modalIn 0.25s ease; position:relative; }
+.player-dialog::before { content:''; position:absolute; inset:-1px; border-radius:15px; background:linear-gradient(135deg, rgba(201,168,76,0.12) 0%, transparent 50%); pointer-events:none; }
+.player-dialog-header { display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+.player-dialog-icon { font-size:1.3rem; filter:drop-shadow(0 0 6px rgba(201,168,76,0.25)); }
+.player-dialog-title { font-size:1.05rem; color:var(--cream); font-weight:700; letter-spacing:-0.2px; }
+.player-field { margin-bottom:16px; }
+.player-field label { display:block; font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.8px; margin-bottom:7px; font-weight:500; }
+.player-input { width:100%; padding:9px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--cream); font-size:0.9rem; outline:none; transition:border-color 0.15s, box-shadow 0.15s; }
+.player-input:focus { border-color:var(--gold-dim); box-shadow:0 0 0 3px rgba(201,168,76,0.08); }
+.player-input::placeholder { color:var(--text-dim); }
+.player-input.mono { font-family:'DM Mono',monospace; font-size:0.85rem; }
+.player-input[type=number]::-webkit-inner-spin-button,
+.player-input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.player-input[type=number] { -moz-appearance: textfield; }
+.player-dialog-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; padding-top:16px; border-top:1px solid var(--border); }
+
+/*Delete Confirm Modal*/
+.del-overlay { position:fixed; inset:0; z-index:1001; background:rgba(0,0,0,0.75); backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.18s; }
+.del-overlay.open { opacity:1; pointer-events:all; }
+.del-dialog { background:var(--surface); border:1px solid #5a2020; border-radius:14px; padding:28px 28px 22px; width:340px; box-shadow:0 24px 64px rgba(0,0,0,0.65), 0 0 0 1px rgba(192,96,96,0.1); animation: modalIn 0.22s ease; position:relative; }
+.del-dialog::before { content:''; position:absolute; inset:-1px; border-radius:15px; background:linear-gradient(135deg, rgba(192,96,96,0.1) 0%, transparent 50%); pointer-events:none; }
+.del-icon { font-size:1.8rem; display:block; text-align:center; margin-bottom:12px; filter:drop-shadow(0 0 8px rgba(192,96,96,0.3)); }
+.del-title { font-size:1rem; font-weight:700; color:var(--cream); text-align:center; letter-spacing:-0.2px; margin-bottom:6px; }
+.del-sub { font-size:0.78rem; color:var(--text-muted); text-align:center; margin-bottom:22px; line-height:1.5; }
+.del-name { color:var(--cream); font-weight:600; }
+.del-actions { display:flex; gap:8px; }
+.del-actions .btn { flex:1; justify-content:center; padding:9px; font-size:0.82rem; }
+
+/*Developer Menu Modal*/
+.dev-overlay { position:fixed; inset:0; z-index:5000; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.2s; }
+.dev-overlay.open { opacity:1; pointer-events:all; }
+.dev-dialog { background:var(--surface); border:1px solid rgba(120,80,200,0.5); border-radius:14px; padding:32px 28px 28px; width:380px; box-shadow:0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(120,80,200,0.15), 0 0 40px rgba(120,80,200,0.08); animation: modalIn 0.25s ease; position:relative; }
+.dev-dialog::before { content:''; position:absolute; inset:-1px; border-radius:15px; background:linear-gradient(135deg, rgba(120,80,200,0.15) 0%, transparent 50%); pointer-events:none; border:1px solid transparent; }
+.dev-header { text-align:center; margin-bottom:24px; }
+.dev-icon { font-size:2rem; margin-bottom:10px; display:block; filter:drop-shadow(0 0 10px rgba(120,80,200,0.5)); }
+.dev-title { font-size:1.1rem; color:var(--cream); font-weight:700; letter-spacing:-0.2px; }
+.dev-subtitle { font-size:0.65rem; color:rgba(160,120,240,0.8); text-transform:uppercase; letter-spacing:2px; margin-top:6px; }
+.dev-row { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; }
+.dev-row-label { font-size:0.82rem; font-weight:600; color:var(--text); }
+.dev-row-desc { font-size:0.7rem; color:var(--text-muted); margin-top:2px; }
+.dev-toggle { position:relative; width:42px; height:24px; flex-shrink:0; }
+.dev-toggle input { opacity:0; width:0; height:0; }
+.dev-toggle-track { position:absolute; cursor:pointer; inset:0; background:var(--surface3); border:1px solid var(--border2); border-radius:34px; transition:0.2s; }
+.dev-toggle input:checked + .dev-toggle-track { background:rgba(120,80,200,0.6); border-color:rgba(120,80,200,0.8); }
+.dev-toggle-thumb { position:absolute; content:''; height:16px; width:16px; left:3px; bottom:3px; background:var(--text-muted); border-radius:50%; transition:0.2s; pointer-events:none; }
+.dev-toggle input:checked ~ .dev-toggle-thumb { transform:translateX(18px); background:#fff; }
+.dev-bypass-active { border-color:rgba(120,80,200,0.4); background:rgba(120,80,200,0.06); }
+.btn-dev { background:rgba(120,80,200,0.15); border:1px solid rgba(120,80,200,0.4); color:rgba(180,140,255,0.9); font-weight:600; transition:background 0.15s, border-color 0.15s; }
+.btn-dev:hover { background:rgba(120,80,200,0.25); border-color:rgba(120,80,200,0.7); }
+
+/*Welcome Overlay*/
+#welcomeOverlay { z-index: 3000; background: rgba(14, 14, 15, 0.95); backdrop-filter: blur(10px); }
+</style>
+</head>
+<body>
+<div class="glass-bg"><div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     WELCOME / SCHOOL SELECTION OVERLAY
+     Shown on first launch until a school profile is selected.
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="player-overlay" id="welcomeOverlay">
+  <div class="player-dialog" style="width:1200px; max-width:95vw; text-align:center; padding:50px;">
+    <div class="player-dialog-header" style="justify-content:center; margin-bottom:28px;">
+      <span class="player-dialog-icon" style="font-size:3rem;">♟️</span>
+      <div class="player-dialog-title" style="font-size:2.4rem;">Welcome to the Chess Coach Utility!</div>
+    </div>
+    <p style="font-size:1.5rem; color:var(--text-muted); margin-bottom:48px; line-height:1.5;">Please select a school to begin.</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+      <button class="import-source-btn" style="flex-direction:column; justify-content:center; text-align:center; padding:48px 32px; gap:20px;" onclick="switchSchool('pshs')">
+        <img class="school-card-logo" src="https://raw.githubusercontent.com/Abscissa24/CCU/main/PSHS/logo.png" style="width:150px; height:150px; margin:0; object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <span class="school-card-logo-fallback" style="display:none; width:120px; height:120px; font-size:3.5rem; align-items:center; justify-content:center; margin:0;">🏫</span>
+        <div>
+          <div class="import-source-label" style="font-size:1.8rem;">Port Shepstone High</div>
+          <div class="import-source-desc" style="font-size:1.25rem;">Requires PIN</div>
+        </div>
+      </button>
+      <button class="import-source-btn" style="flex-direction:column; justify-content:center; text-align:center; padding:48px 32px; gap:20px;" onclick="switchSchool('izotsha')">
+        <img class="school-card-logo" src="https://raw.githubusercontent.com/Abscissa24/CCU/main/Izotsha/logo.png" style="width:120px; height:120px; margin:0; object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+        <span class="school-card-logo-fallback" style="display:none; width:120px; height:120px; font-size:3.5rem; align-items:center; justify-content:center; margin:0;">🏫</span>
+        <div>
+          <div class="import-source-label" style="font-size:1.8rem;">Izotsha Primary</div>
+          <div class="import-source-desc" style="font-size:1.25rem;">Requires PIN</div>
+        </div>
+      </button>
+      <button class="import-source-btn" style="grid-column:1/-1; justify-content:center; text-align:center; gap:16px; padding:32px;" onclick="switchSchool('guest')">
+        <span class="school-card-logo-fallback" style="width:64px; height:64px; font-size:2.5rem; background:transparent; display:flex; align-items:center; justify-content:center;">👤</span>
+        <div>
+          <div class="import-source-label" style="display:inline-block; margin-right:16px; font-size:1.8rem;">Guest</div>
+          <span class="import-source-desc" style="font-size:1.3rem;">No PIN required. Limited features.</span>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     IZOTSHA DATABASE SELECTOR
+     Shown when importing for Izotsha — lets coach pick Grade 4/5 or 6/7.
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="player-overlay" id="dbSelectOverlay" style="z-index:2000;">
+  <div class="player-dialog" style="width:320px; text-align:center;">
+    <div class="player-dialog-header" style="justify-content:center;">
+      <span class="player-dialog-icon">📂</span>
+      <div class="player-dialog-title">Select Database</div>
+    </div>
+    <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:18px;">Which Izotsha database would you like to load?</p>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button class="btn btn-gold" onclick="fetchOnlineDB(SCHOOLS.izotsha.db45)">Grade 4 &amp; 5</button>
+      <button class="btn btn-gold" onclick="fetchOnlineDB(SCHOOLS.izotsha.db67)">Grade 6 &amp; 7</button>
+      <button class="btn btn-outline" style="margin-top:8px;" onclick="closeDbSelectModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     IMPORT SOURCE MODAL
+     Lets the user choose between importing from a local file or GitHub.
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="player-overlay" id="importSourceOverlay">
+  <div class="player-dialog" style="width:360px;">
+    <div class="player-dialog-header">
+      <span class="player-dialog-icon">⬇</span>
+      <div class="player-dialog-title">Import Players</div>
+    </div>
+    <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:18px; line-height:1.55;">Choose where to load the player list from.</p>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button class="import-source-btn" id="importLocalBtn" onclick="chooseImportLocal()">
+        <span class="import-source-icon">🗂</span>
+        <div>
+          <div class="import-source-label">Local File</div>
+          <div class="import-source-desc">Select a .db file from your device</div>
+        </div>
+      </button>
+      <button class="import-source-btn" id="importOnlineBtn" onclick="chooseImportOnline()">
+        <span class="import-source-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted)"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12"/></svg></span>
+        <div>
+          <div class="import-source-label">Online — GitHub</div>
+          <div class="import-source-desc">Fetch from the configured repository</div>
+        </div>
+      </button>
+    </div>
+    <div class="player-dialog-actions" style="margin-top:18px;">
+      <button class="btn btn-outline" style="width:100%;" onclick="closeImportSourceModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="localDbInput" accept=".db,.json" style="display:none;" onchange="handleLocalImport(event)">
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     EXPORT MODAL
+     Lets the user choose between catalogue (.txt) or full database (.db) export.
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="player-overlay" id="exportModalOverlay">
+  <div class="player-dialog" style="width:360px;">
+    <div class="player-dialog-header">
+      <span class="player-dialog-icon">⬆</span>
+      <div class="player-dialog-title">Export Players</div>
+    </div>
+    <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:18px; line-height:1.55;">Choose an export format.</p>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <button class="import-source-btn" onclick="exportCatalogue();closeExportModal()">
+        <span class="import-source-icon">📄</span>
+        <div>
+          <div class="import-source-label">Catalogue</div>
+          <div class="import-source-desc">Numbered list of player names as a .txt file</div>
+        </div>
+      </button>
+      <button class="import-source-btn" onclick="exportDatabase();closeExportModal()">
+        <span class="import-source-icon">🗄</span>
+        <div>
+          <div class="import-source-label">Database</div>
+          <div class="import-source-desc">Full registry with ratings &amp; usernames as a .db file</div>
+        </div>
+      </button>
+    </div>
+    <div class="player-dialog-actions" style="margin-top:18px;">
+      <button class="btn btn-outline" style="width:100%;" onclick="closeExportModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Generic alert / confirm modal -->
+<div class="del-overlay" id="alertOverlay">
+  <div class="del-dialog" id="alertDialog" style="border-color:var(--border2);">
+    <div style="position:relative;">
+      <div class="del-title" id="alertTitle"></div>
+      <div class="del-sub" style="margin-bottom:22px;" id="alertMsg"></div>
+      <div class="del-actions" id="alertActions"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete player confirm modal -->
+<div class="del-overlay" id="delOverlay">
+  <div class="del-dialog">
+    <span class="del-icon">🗑</span>
+    <div class="del-title">Remove Player</div>
+    <div class="del-sub">This will permanently remove <span class="del-name" id="delPlayerName"></span> from the registry.</div>
+    <div class="del-actions">
+      <button class="btn btn-outline" onclick="closeDelModal()">Cancel</button>
+      <button class="btn btn-confirm-del" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit player modal -->
+<div class="player-overlay" id="playerOverlay">
+  <div class="player-dialog">
+    <div class="player-dialog-header">
+      <span class="player-dialog-icon" id="playerDialogIcon">♟</span>
+      <div class="player-dialog-title" id="playerDialogTitle">Add Player</div>
+    </div>
+    <div class="player-field">
+      <label>Full Name</label>
+      <input class="player-input" id="pf-name" type="text" placeholder="e.g. Muzi Madlala" autocomplete="off">
+    </div>
+    <div style="border-top:1px solid var(--border); margin:4px 0 16px;"></div>
+    <div class="player-field">
+      <label>Chess.com Username</label>
+      <input class="player-input mono" id="pf-chesscom" type="text" placeholder="Username or leave blank">
+    </div>
+    <div class="player-field" style="margin-bottom:4px;">
+      <label>Rating</label>
+      <input class="player-input mono" id="pf-rating" type="number" placeholder="e.g. 1450 or leave blank" min="100" max="3000">
+    </div>
+    <div class="player-dialog-actions">
+      <button class="btn btn-outline" onclick="closePlayerModal()">Cancel</button>
+      <button class="btn btn-gold" id="playerSubmitBtn" onclick="submitPlayerModal()">Add Player</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     PIN MODAL
+     Shared modal for school authentication and developer access.
+     Context is set via openPinModal() before display.
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-dialog" id="pinDialog">
+    <div class="pin-header">
+      <span class="pin-icon" id="pinIcon">🔐</span>
+      <div class="pin-title" id="pinTitle">Authentication Required</div>
+      <div class="pin-subtitle" id="pinSubtitle">Enter PIN to continue</div>
+    </div>
+    <div class="pin-dots" id="pinDots"></div>
+    <div class="pin-error-msg" id="pinError"></div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key pin-clear" onclick="pinBackspace()">⌫</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key pin-enter" id="pinEnter" onclick="pinSubmit()" disabled>Enter</button>
+    </div>
+    <button class="pin-cancel" onclick="closePinModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     DEVELOPER MENU MODAL
+     Accessible only via the hidden 5-click easter egg on the attribution text.
+     Provides options to bypass guest restrictions and access the repository.
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="dev-overlay" id="devOverlay">
+  <div class="dev-dialog">
+    <div class="dev-header">
+      <span class="dev-icon">🛠</span>
+      <div class="dev-title">Developer Menu</div>
+      <div class="dev-subtitle">Internal Access — CCU v<span id="devMenuVersion"></span></div>
+    </div>
+
+    <!-- Toggle: bypass all guest restrictions -->
+    <div class="dev-row" id="devBypassRow">
+      <div>
+        <div class="dev-row-label">Bypass Guest Restrictions</div>
+        <div class="dev-row-desc">Remove round cap, player cap, and feature locks for Guest</div>
+      </div>
+      <label class="dev-toggle">
+        <input type="checkbox" id="devBypassToggle" onchange="toggleDevBypass(this.checked)">
+        <div class="dev-toggle-track"></div>
+        <div class="dev-toggle-thumb"></div>
+      </label>
+    </div>
+
+    <!-- Button: open main repository in browser -->
+    <div class="dev-row">
+      <div>
+        <div class="dev-row-label">Main Repository</div>
+        <div class="dev-row-desc">Open the CCU GitHub repository</div>
+      </div>
+      <button class="btn btn-dev btn-sm" onclick="window.open('https://github.com/Abscissa24/CCU','_blank')">Open ↗</button>
+    </div>
+
+    <div style="border-top:1px solid var(--border); margin:16px 0 12px;"></div>
+    <button class="btn btn-outline" style="width:100%; font-size:0.8rem;" onclick="closeDevMenu()">Close</button>
+  </div>
+</div>
+
+<!-- Participant selection / management modal -->
+<div class="player-overlay" id="participantOverlay">
+  <div class="player-dialog" style="width:min(900px,96vw); height:60vh; display:flex; flex-direction:column;">
+    <div class="player-dialog-header" style="justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="player-dialog-icon">⚔️</span>
+        <div class="player-dialog-title" id="participantModalTitle">Select Participants</div>
+      </div>
+      <div id="timerSetArea" style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:0.75rem; color:var(--text-muted); font-family:'DM Sans',sans-serif;">Round limit:</span>
+        <div style="display:flex; align-items:center; background:var(--surface2); border:1px solid var(--border2); border-radius:6px; overflow:hidden;">
+          <button id="timerMinusBtn" onmousedown="startHold(-1)" onmouseup="endHold()" onmouseleave="endHold()" ontouchstart="startHold(-1)" ontouchend="endHold()" style="background:transparent; border:none; border-right:1px solid var(--border); color:var(--gold); width:32px; height:32px; cursor:pointer; font-size:1rem; font-family:'DM Sans',sans-serif; display:flex; align-items:center; justify-content:center; transition:color 0.12s,background 0.12s; user-select:none;" onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='transparent'">−</button>
+          <span id="roundMinutesDisplay" style="font-family:'DM Sans',sans-serif; font-size:0.85rem; font-weight:600; color:var(--cream); padding:0 12px; min-width:68px; text-align:center;">20 min</span>
+          <button id="timerPlusBtn" onmousedown="startHold(1)" onmouseup="endHold()" onmouseleave="endHold()" ontouchstart="startHold(1)" ontouchend="endHold()" style="background:transparent; border:none; border-left:1px solid var(--border); color:var(--gold); width:32px; height:32px; cursor:pointer; font-size:1rem; font-family:'DM Sans',sans-serif; display:flex; align-items:center; justify-content:center; transition:color 0.12s,background 0.12s; user-select:none;" onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background='transparent'">+</button>
+        </div>
+      </div>
+    </div>
+    <p id="participantModalDesc" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:14px; line-height:1.5;">Choose which players are competing in this tournament.</p>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <span id="participantCount" style="font-size:0.75rem; color:var(--text-muted);"></span>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="selectAllParticipants(true)">Select All</button>
+        <button class="btn btn-outline btn-sm" onclick="selectAllParticipants(false)">Clear</button>
+      </div>
+    </div>
+    <div id="participantList" class="participant-list-scroll" style="flex:1; overflow-y:auto; border:1px solid var(--border); border-radius:6px;"></div>
+    <div class="player-dialog-actions" style="margin-top:16px;">
+      <button class="btn btn-outline" onclick="closeParticipantModal()">Cancel</button>
+      <button class="btn btn-gold" id="participantConfirmBtn" onclick="confirmParticipants()" disabled>Start Tournament</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     MAIN APP HEADER
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<header>
+  <div class="logo-container">
+    <!-- Clicking the chess piece icon also toggles the sidebar -->
+    <button id="burgerBtn" onclick="toggleSidebar()" title="Toggle menu" style="background:transparent; border:none; cursor:pointer; padding:0; line-height:1; flex-shrink:0;">
+      <span class="logo-icon" style="display:block;">♟</span>
+    </button>
+    <div class="logo-text-wrap">
+      <div class="logo-text" style="font-weight:800;">Chess Coach Utility</div>
+      <!-- Attribution: clicking 5 times opens the developer PIN prompt -->
+      <div class="attribution" id="attributionText" onclick="handleAttributionClick()" title="made by armiel">made by armiel</div>
+    </div>
+  </div>
+
+  <!-- Round countdown timer — shown only when a timed round is active -->
+  <div class="header-timer" id="headerTimer">
+    <div style="display:flex; flex-direction:column; align-items:center; gap:3px;">
+      <span class="timer-label" style="font-weight:bold;">Round Timer</span>
+      <div class="timer-display" id="timerDisplay" style="font-weight:900;">00:00</div>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     APP LAYOUT: Sidebar + Main Content
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <button class="sidebar-btn active" onclick="showView('home')"     id="nav-home"     style="font-weight:bold;">Home</button>
+      <button class="sidebar-btn"        onclick="showView('database')" id="nav-database" style="font-weight:bold;">Database</button>
+      <button class="sidebar-btn"        onclick="showView('setup')"    id="nav-setup"    style="font-weight:bold;">Tournament</button>
+      <button class="sidebar-btn"        onclick="showView('settings')" id="nav-settings" style="font-weight:bold;">Settings</button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!--HOME VIEW-->
+    <div class="view active" id="view-home">
+      <div style="max-width:900px; margin:120px auto; text-align:center;">
+        <h1 id="homeWelcome" style="font-size:2.5rem; color:var(--cream); margin-bottom:12px; letter-spacing:-1px;">Welcome, Coach.</h1>
+        <p style="color:var(--text-muted); margin-bottom:64px; font-size:1.1rem;">Manage your players and run seamless tournaments.</p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:24px;">
+          <div class="home-card" onclick="showView('database')">
+            <div class="home-card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                <path d="M4 15.5A2.5 2.5 0 0 1 6.5 13H20" opacity="0.6"/><path d="M4 11.5A2.5 2.5 0 0 1 6.5 9H20" opacity="0.4"/>
+              </svg>
+            </div>
+            <h3>Player Registry</h3>
+            <p>Manage ratings, track progress, and import club data.</p>
+          </div>
+          <div class="home-card" onclick="showView('setup')">
+            <div class="home-card-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 20h20"/><path d="M4 20v-7c0-2 1-4 3-4h10c2 0 3 2 3 4v7"/>
+                <path d="M7 9V5c0-1 1-2 2-2h6c1 0 2 1 2 2v4"/><path d="M8 20v-3c0-1 1-2 2-2s2 1 2 2v3"/>
+                <path d="M14 20v-3c0-1 1-2 2-2s2 1 2 2v3"/><path d="M10 9V5"/><path d="M14 9V5"/>
+                <path d="M2 16h20" opacity="0.5"/>
+              </svg>
+            </div>
+            <h3>Tournament</h3>
+            <p>Generate Swiss pairings and track live standings.</p>
+          </div>
+        </div>
+
+        <!-- Update banner — shown when a newer version is available -->
+        <div id="updateBanner" style="display:none; margin-top:40px; background:rgba(201,168,76,0.08); border:1px solid rgba(201,168,76,0.3); border-radius:10px; padding:16px 20px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; width:100%;">
+            <div style="display:flex; align-items:center; gap:12px; text-align:left; flex:1;">
+              <span style="font-size:1.1rem; flex-shrink:0;">🔔</span>
+              <div>
+                <div id="updateBannerTitle" style="font-size:0.88rem; font-weight:700; color:var(--gold); letter-spacing:-0.1px; line-height:1.3;">Update available</div>
+                <div id="updateBannerSub"   style="font-size:0.75rem; color:var(--text-muted); margin-top:3px; line-height:1.4;"></div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+              <button class="btn btn-gold"    style="font-size:0.8rem; padding:6px 16px;"  onclick="doUpdate()">Download</button>
+              <button class="btn btn-outline" style="font-size:0.75rem; padding:5px 12px; color:var(--text-muted);" onclick="dismissUpdateBanner()">Dismiss</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!--DATABASE VIEW-->
+    <div class="view" id="view-database">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+          <h3 style="font-weight:700; font-size:1rem; letter-spacing:-0.2px;">
+            Player Registry <span class="badge" id="monthBadge"></span>
+          </h3>
+          <div style="display:flex; gap:10px; flex:1; justify-content:flex-end; min-width:300px;">
+            <input type="text" id="dbSearch" placeholder="Search..." class="input-field" style="max-width:150px; display:none;" oninput="renderDatabase()">
+            <button class="btn btn-import" id="dbCalcBtn" onclick="calculateChessRatings()" style="display:none; width:96px; justify-content:center;">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="flex-shrink:0"><rect x="1" y="1" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M4 6.5h5M6.5 4v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Calculate
+            </button>
+            <button class="btn btn-gold" onclick="addDbPlayer()">+ Add Player</button>
+          </div>
+        </div>
+        <div class="db-table-wrap">
+          <table class="db-table">
+            <thead><tr id="dbHeader"><th>Rank</th><th>Name</th><th>Rating</th><th>Chess.com</th><th>Actions</th></tr></thead>
+            <tbody id="dbTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOURNAMENT VIEW -->
+    <div class="view" id="view-setup">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <h3 style="font-weight:700; font-size:1rem; letter-spacing:-0.2px;">
+            <span id="tournamentSchoolName">Swiss Tournament</span>
+            <span id="roundBadge" class="badge">Round 0</span>
+          </h3>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-outline" id="manageBtn" onclick="openManageParticipants()" style="display:none;">⚙ Manage</button>
+            <button class="btn btn-gold" id="pairingsBtn" onclick="generateSwissPairings()">Start Tournament</button>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:20px;" id="tournamentContent">
+          <div>
+            <label id="pairingLabel" style="font-family:'DM Sans',sans-serif; font-weight:700; font-size:0.75rem;">Current Pairings</label>
+            <div class="db-table-wrap" id="pairingsWrap">
+              <table class="db-table"><thead><tr><th>White</th><th>vs</th><th>Black</th><th>Result</th></tr></thead><tbody id="pairingsBody"></tbody></table>
+            </div>
+          </div>
+          <div>
+            <label style="font-family:'DM Sans',sans-serif; font-weight:700; font-size:0.75rem;">Live Standings</label>
+            <div class="db-table-wrap" id="standingsWrap">
+              <table class="db-table"><thead><tr><th>Player</th><th>Points</th></tr></thead><tbody id="standingsBody"></tbody></table>
+            </div>
+          </div>
+        </div>
+        <div id="tournamentEmpty" style="display:none;">
+          <div class="empty-state">
+            <div class="empty-icon">⚔️</div>
+            <p class="empty-msg">No tournament in progress.</p>
+            <p class="empty-sub">Hit "Start Tournament" to select players and generate the first round.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS VIEW -->
+    <div class="view" id="view-settings">
+      <div class="settings-scroll">
+
+        <div class="card settings-section">
+          <div class="settings-section-header"><span class="settings-section-icon">🖥</span><span class="settings-section-title">Interface Settings</span></div>
+          <div class="form-group">
+            <label style="font-weight:bold;">Theme</label>
+            <select id="themeSelect" onchange="changeTheme(this.value)">
+              <option value="glass">Gradient</option>
+              <option value="dark">Dark Mode</option>
+              <option value="light">Light Mode</option>
+            </select>
+          </div>
+          <div class="form-group" id="gradientModeGroup">
+            <label style="font-weight:bold;">Gradient Style</label>
+            <select id="gradientModeSelect" onchange="changeGradientMode(this.value)">
+              <option value="static">Static</option>
+              <option value="animated">Animated</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label style="font-weight:bold;">UI Scale: <span id="scaleValue">100%</span></label>
+            <div class="scale-slider-wrap">
+              <input type="range" id="scaleRange" min="1" max="2" step="0.05" value="1" oninput="changeScale(this.value)">
+            </div>
+          </div>
+        </div>
+
+        <div class="card settings-section">
+          <div class="settings-section-header"><span class="settings-section-icon">📚</span><span class="settings-section-title">Database Settings</span></div>
+          <div class="settings-action-row">
+            <div>
+              <div class="settings-action-label">Import Players</div>
+              <div class="settings-action-desc">Import from a local .db file or fetch from GitHub</div>
+            </div>
+            <button class="btn btn-import" id="settingsImportBtn" onclick="openImportSourceModal()" style="width:96px; justify-content:center;">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="flex-shrink:0"><path d="M6.5 1v7M3.5 5.5l3 3 3-3M2 10.5h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Import
+            </button>
+          </div>
+          <div class="settings-action-row">
+            <div>
+              <div class="settings-action-label">Export Players</div>
+              <div class="settings-action-desc">Download the registry as a .db file for backup or GitHub</div>
+            </div>
+            <button class="btn btn-import" id="settingsExportBtn" onclick="openExportModal()" style="border-color:var(--border2); color:var(--text-muted); width:96px; justify-content:center;">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="flex-shrink:0"><path d="M6.5 12V5M3.5 7.5l3-3 3 3M2 2.5h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Export
+            </button>
+          </div>
+          <div class="settings-action-row">
+            <div>
+              <div class="settings-action-label">Calculate Ratings</div>
+              <div class="settings-action-desc">Fetch current Chess.com ratings and compute the arithmetic mean</div>
+            </div>
+            <button class="btn btn-import" id="calcRatingsBtn" onclick="calculateChessRatings()" style="width:96px; justify-content:center;">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="flex-shrink:0"><rect x="1" y="1" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M4 6.5h5M6.5 4v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Calculate
+            </button>
+          </div>
+          <div class="settings-action-row">
+            <div>
+              <div class="settings-action-label">Purge Database</div>
+              <div class="settings-action-desc">Permanently delete all players from the registry</div>
+            </div>
+            <button class="btn btn-danger" onclick="purgeDatabase()" style="border-color:#5a2020; color:#c06060; gap:5px; flex-shrink:0;">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M1.5 3h9M4.5 3V2h3v1M5 5.5v3M7 5.5v3M2.5 3l.7 7h5.6l.7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Purge
+            </button>
+          </div>
+        </div>
+
+        <div class="card settings-section">
+          <div class="settings-section-header"><span class="settings-section-icon">⚔️</span><span class="settings-section-title">Tournament Settings</span></div>
+          <div class="settings-action-row">
+            <div><div class="settings-action-label">Copy Participants</div><div class="settings-action-desc">Copy the active tournament participant list to clipboard</div></div>
+            <button class="btn btn-copy" onclick="copyParticipants()">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><rect x="4" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 4V2.5A1.5 1.5 0 0 0 6.5 1h-4A1.5 1.5 0 0 0 1 2.5v4A1.5 1.5 0 0 0 2.5 8H4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="settings-action-row">
+            <div><div class="settings-action-label">Copy Standings</div><div class="settings-action-desc">Copy the current standings to clipboard</div></div>
+            <button class="btn btn-copy" onclick="copyStandings()">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><rect x="4" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 4V2.5A1.5 1.5 0 0 0 6.5 1h-4A1.5 1.5 0 0 0 1 2.5v4A1.5 1.5 0 0 0 2.5 8H4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              Copy
+            </button>
+          </div>
+          <div class="settings-action-row">
+            <div><div class="settings-action-label">Reset Tournament</div><div class="settings-action-desc">Clear all rounds, pairings, and scores — cannot be undone</div></div>
+            <button class="btn btn-reset" onclick="resetTournament()" style="flex-shrink:0;">🗘 Reset</button>
+          </div>
+        </div>
+
+        <div class="card settings-section">
+          <div class="settings-section-header"><span class="settings-section-icon">🏫</span><span class="settings-section-title">School</span></div>
+          <div class="school-selector">
+            <button class="school-card" id="school-card-pshs" onclick="switchSchool('pshs')">
+              <img class="school-card-logo" src="https://raw.githubusercontent.com/Abscissa24/CCU/main/PSHS/logo.png" alt="PSHS Logo" style="object-fit:cover; width:48px; height:48px;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+              <span class="school-card-logo-fallback" style="display:none; font-size:24px;">🏫</span>
+              <div>
+                <div class="school-card-name">Port Shepstone High</div>
+                <div class="school-card-coach">Coach: Armiel Pillay</div>
+              </div>
+            </button>
+            <button class="school-card" id="school-card-izotsha" onclick="switchSchool('izotsha')">
+              <img class="school-card-logo" src="https://raw.githubusercontent.com/Abscissa24/CCU/main/Izotsha/logo.png" alt="Izotsha Logo" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+              <span class="school-card-logo-fallback" style="display:none;">🏫</span>
+              <div>
+                <div class="school-card-name">Izotsha Primary</div>
+                <div class="school-card-coach">Coach: Kiyaan Sunder</div>
+              </div>
+            </button>
+            <button class="school-card" id="school-card-guest" onclick="switchSchool('guest')">
+              <span class="school-card-logo-fallback" style="font-size:1.8rem; background:transparent;">👤</span>
+              <div>
+                <div class="school-card-name">Guest Profile</div>
+                <div class="school-card-coach">No cloud sync</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="card settings-section">
+          <div class="settings-section-header"><span class="settings-section-icon">🔄</span><span class="settings-section-title">Updates</span></div>
+          <div class="settings-action-row" id="updateRow">
+            <div style="display:flex; align-items:center; gap:14px;">
+              <div id="versionDot" style="width:8px; height:8px; border-radius:50%; background:var(--gold); flex-shrink:0; transition:background 0.3s;"></div>
+              <div>
+                <div class="settings-action-label" id="versionDesc">Checking for updates…</div>
+                <div class="settings-action-desc" id="versionSub" style="display:none;"></div>
+              </div>
+            </div>
+            <button class="btn btn-gold" id="updateBtn" style="display:none;" onclick="doUpdate()">Update</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT — Chess Coach Utility
+     ══════════════════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── Constants & School Configuration ─────────────────────────────────────────
+const CURRENT_VERSION = '2.260328';
+const VERSION_URL     = 'https://raw.githubusercontent.com/Abscissa24/CCU/main/Assets/Update/Version.txt';
+const DEV_PIN         = '2424';         // Secret developer access PIN
+const GUEST_MAX_PLAYERS = 20;           // Database cap for guest accounts
+const GUEST_MAX_ROUNDS  = 3;            // Tournament round cap for guest accounts
+
+/**
+ * School registry. Each entry defines:
+ *   id         — unique key used in state & DOM
+ *   name       — display name
+ *   coach      — coach's full name
+ *   logo       — URL to logo image
+ *   playersUrl — URL to players.db file (for single-database schools)
+ *   db45/db67  — URLs for Izotsha's split databases
+ *   pin        — 4-digit authentication PIN (empty string = no PIN required)
+ *   licenseUrl — raw GitHub URL to the school's license file.
+ *                The file must contain exactly "true" (active) or "false" (expired).
+ *
+ * To add a new school: append an entry here following the same pattern.
+ */
+const SCHOOLS = {
+  pshs: {
+    id: 'pshs',
+    name: 'PSHS',
+    coach: 'Armiel Pillay',
+    logo: 'https://raw.githubusercontent.com/Abscissa24/CCU/main/PSHS/logo.png',
+    playersUrl: 'https://raw.githubusercontent.com/Abscissa24/CCU/main/PSHS/players.db',
+    pin: '0852',
+    licenseUrl: 'https://raw.githubusercontent.com/Abscissa24/CCU/main/PSHS/license'
+  },
+  izotsha: {
+    id: 'izotsha',
+    name: 'Izotsha Primary',
+    coach: 'Kiyaan Sunder',
+    logo: 'https://raw.githubusercontent.com/Abscissa24/CCU/main/Izotsha/logo.png',
+    playersUrl: '',
+    db45: 'https://raw.githubusercontent.com/Abscissa24/CCU/main/Izotsha/players.g4-g5.db',
+    db67: 'https://raw.githubusercontent.com/Abscissa24/CCU/main/Izotsha/players.g6-g7.db',
+    pin: '1234',
+    licenseUrl: 'https://raw.githubusercontent.com/Abscissa24/CCU/main/Izotsha/license'
+  },
+  guest: {
+    id: 'guest',
+    name: 'Guest',
+    coach: '-',
+    logo: '',
+    playersUrl: '',
+    pin: '',
+    licenseUrl: '' // No license check for guest
+  }
+};
+
+/** Returns the school object for the currently active profile. */
+function activeSchool() { return SCHOOLS[state.selectedSchool] || SCHOOLS.pshs; }
+
+// Application State
+/**
+ * Central state object — persisted to localStorage as 'coachdata'.
+ * This exists as a way to keep the database and tournaments loaded through cashing instead of RAM usage. Moooo.
+ *
+ * schoolData holds each school's players and tournament data separately,
+ * allowing the coach to switch between schools without data collision.
+ */
+let state = {
+  theme:          'glass',
+  scale:          1,
+  gradientMode:   'static',
+  selectedSchool: 'pshs',
+  isSetupComplete: undefined,
+  schoolData: {
+    pshs:    { players: [], tournament: { round: 0, rounds: [], byeHistory: [] } },
+    izotsha: { players: [], tournament: { round: 0, rounds: [], byeHistory: [] } },
+    guest:   { players: [], tournament: { round: 0, rounds: [], byeHistory: [] } }
+  },
+  dbPlayers:  [],
+  tournament: { round: 0, rounds: [], byeHistory: [] }
+};
+
+/** Persists the full state to localStorage. Always syncs the active school's data first. */
+function saveState() {
+  if (!state.schoolData) {
+    state.schoolData = {
+      pshs:    { players: [], tournament: { round:0, rounds:[], byeHistory:[] } },
+      izotsha: { players: [], tournament: { round:0, rounds:[], byeHistory:[] } },
+      guest:   { players: [], tournament: { round:0, rounds:[], byeHistory:[] } }
+    };
+  }
+  state.schoolData[state.selectedSchool] = {
+    players:    state.dbPlayers,
+    tournament: state.tournament
+  };
+  localStorage.setItem('coachdata', JSON.stringify(state));
+}
+
+/** Loads persisted state from localStorage and initialises the UI accordingly. */
+function loadState() {
+  const saved = localStorage.getItem('coachdata');
+  if (saved) state = JSON.parse(saved);
+
+  // Migration: ensure required fields exist (handles older saved states)
+  if (state.scale < 1) state.scale = 1;
+  if (!state.gradientMode)   state.gradientMode   = 'static';
+  if (!state.selectedSchool) state.selectedSchool = 'pshs';
+
+  if (!state.schoolData) {
+    state.schoolData = {
+      pshs:    { players: state.dbPlayers || [], tournament: state.tournament || { round:0, rounds:[], byeHistory:[] } },
+      izotsha: { players: [], tournament: { round:0, rounds:[], byeHistory:[] } },
+      guest:   { players: [], tournament: { round:0, rounds:[], byeHistory:[] } }
+    };
+  }
+  // Ensure all school slots exist (needed when new schools are added)
+  ['pshs','izotsha','guest'].forEach(id => {
+    if (!state.schoolData[id])
+      state.schoolData[id] = { players: [], tournament: { round:0, rounds:[], byeHistory:[] } };
+  });
+
+  // Point active state references to the selected school's data
+  const sd = state.schoolData[state.selectedSchool];
+  state.dbPlayers  = sd.players;
+  state.tournament = sd.tournament;
+  if (!state.tournament.rounds)     state.tournament.rounds     = [];
+  if (!state.tournament.byeHistory) state.tournament.byeHistory = [];
+
+  // Apply persisted UI preferences
+  changeTheme(state.theme || 'glass');
+  changeScale(state.scale || 1);
+  changeGradientMode(state.gradientMode);
+  if (state.roundMinutes) _roundMinutes = state.roundMinutes;
+  applySchoolUI();
+
+  if (!state.isSetupComplete) {
+    document.getElementById('welcomeOverlay').classList.add('open');
+  } else {
+    checkForUpdates();
+  }
+}
+
+// Guest Restriction Helpers
+
+/**
+ * Whether the current session has guest-level restrictions active.
+ * Returns true only when the selected school is 'guest' AND the
+ * developer bypass has not been enabled.
+ */
+function isGuest() {
+  return state.selectedSchool === 'guest' && !_devBypassEnabled;
+}
+
+/**
+ * Shows a uniform "guest feature locked" alert with an upgrade prompt.
+ * @param {string} featureName - Human-readable name of the blocked feature.
+ */
+function showGuestRestriction(featureName) {
+  showAlert(
+    `🔒 Guest Restriction`,
+    `${featureName} is not available on the Guest profile. Select a school account to unlock all features.`
+  );
+}
+
+// School Switching & Licence Verification
+
+/**
+ * Entry point for switching schools (called by UI buttons).
+ * - Guest profile: switches immediately, no PIN or license check.
+ * - School profiles: opens the PIN modal; license is verified after PIN entry.
+ */
+function switchSchool(id) {
+  if (!SCHOOLS[id]) return;
+  // If already on this school and setup is complete, do nothing
+  if (id === state.selectedSchool && state.isSetupComplete) return;
+
+  if (id === 'guest') {
+    completeSchoolSwitch('guest');
+  } else {
+    // Store target so pinSubmit knows which school to finalise
+    openPinModal('switchSchool', id, SCHOOLS[id].pin);
+  }
+}
+
+/**
+ * Checks the school's license file on GitHub.
+ * @param {string} id - School key (e.g. 'pshs', 'izotsha').
+ * @returns {Promise<boolean>} true if licensed, false if expired/unreachable.
+ */
+async function checkSchoolLicense(id) {
+  const school = SCHOOLS[id];
+  if (!school || !school.licenseUrl) return true; // No URL = no check required
+
+  try {
+    const res  = await fetch(school.licenseUrl + '?t=' + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = (await res.text()).trim().toLowerCase();
+    return text === 'true';
+  } catch (err) {
+    console.warn(`[CCU] License check failed for ${id}:`, err.message);
+    // Network failure — fail open so offline use is not blocked
+    return true;
+  }
+}
+
+/**
+ * Verifies the license, then either completes the school switch or shows
+ * an expiry notice. Called after a successful PIN entry.
+ * @param {string} id - School key.
+ */
+async function completeSwitchWithLicenseCheck(id) {
+  // Show a brief loading indicator in the toast area
+  showToast('⏳ Verifying license…', 'default');
+
+  const licensed = await checkSchoolLicense(id);
+  if (!licensed) {
+    showAlert(
+      '⛔ Subscription Expired',
+      `The license for ${SCHOOLS[id].name} is currently inactive. Please ensure the monthly subscription is up to date, then try again.`
+    );
+    return;
+  }
+  completeSchoolSwitch(id);
+}
+
+/**
+ * Finalises the school switch after all checks pass.
+ * Saves state, updates active data references, and refreshes the UI.
+ * @param {string} id - School key.
+ */
+function completeSchoolSwitch(id) {
+  saveState();
+  state.selectedSchool = id;
+
+  const sd = state.schoolData[id];
+  state.dbPlayers  = sd.players;
+  state.tournament = sd.tournament;
+  if (!state.tournament.rounds)     state.tournament.rounds     = [];
+  if (!state.tournament.byeHistory) state.tournament.byeHistory = [];
+
+  const wasFirstSetup = !state.isSetupComplete;
+  state.isSetupComplete = true;
+  saveState();
+
+  document.getElementById('welcomeOverlay').classList.remove('open');
+  applySchoolUI();
+  renderDatabase();
+  renderTournament();
+
+  if (wasFirstSetup) checkForUpdates();
+}
+
+/**
+ * Updates all UI elements that reflect the active school:
+ * - Tournament heading
+ * - School card highlight in Settings
+ * - Home welcome message
+ */
+function applySchoolUI() {
+  const s = activeSchool();
+
+  // Tournament heading
+  const th = document.getElementById('tournamentSchoolName');
+  if (th) th.textContent = (s.name === 'Guest' ? 'Local' : s.name) + ' Swiss Tournament';
+
+  // Highlight the active school card in Settings
+  Object.keys(SCHOOLS).forEach(id => {
+    const card = document.getElementById('school-card-' + id);
+    if (!card) return;
+    if (id === state.selectedSchool) {
+      card.style.borderColor = 'var(--gold)';
+      card.style.boxShadow   = '0 0 0 1px rgba(201,168,76,0.25)';
+      card.style.background  = 'rgba(201,168,76,0.06)';
+    } else {
+      card.style.borderColor = 'var(--border)';
+      card.style.boxShadow   = 'none';
+      card.style.background  = 'var(--surface2)';
+    }
+  });
+
+  // Welcome message
+  const welcomeEl = document.getElementById('homeWelcome');
+  if (welcomeEl) {
+    const firstName = (s.coach && s.coach !== '-') ? s.coach.split(' ')[0] : null;
+    welcomeEl.textContent = firstName ? `Welcome, ${firstName}.` : 'Welcome, Coach.';
+  }
+
+  // Update Settings buttons to reflect guest state
+  applyGuestUI();
+}
+
+/**
+ * Dims / re-enables the Settings buttons that are locked for guests,
+ * and shows a guest badge next to the school name if applicable.
+ */
+function applyGuestUI() {
+  const guest = isGuest();
+
+  // Import button
+  const importBtn = document.getElementById('settingsImportBtn');
+  if (importBtn) {
+    importBtn.style.opacity   = guest ? '0.45' : '1';
+    importBtn.title = guest ? 'Not available for Guest accounts' : '';
+  }
+  // Export button
+  const exportBtn = document.getElementById('settingsExportBtn');
+  if (exportBtn) {
+    exportBtn.style.opacity   = guest ? '0.45' : '1';
+    exportBtn.title = guest ? 'Not available for Guest accounts' : '';
+  }
+  // Calculate ratings button (settings panel)
+  const calcBtn = document.getElementById('calcRatingsBtn');
+  if (calcBtn) {
+    calcBtn.style.opacity = guest ? '0.45' : '1';
+    calcBtn.title = guest ? 'Not available for Guest accounts' : '';
+  }
+  // Calculate ratings button (database header)
+  const dbCalcBtn = document.getElementById('dbCalcBtn');
+  if (dbCalcBtn) {
+    dbCalcBtn.style.opacity = guest ? '0.45' : '1';
+    dbCalcBtn.title = guest ? 'Not available for Guest accounts' : '';
+  }
+}
+
+// Sidebar
+
+function toggleSidebar() {
+  const sidebar = document.querySelector('.sidebar');
+  const btn     = document.getElementById('burgerBtn');
+  const isCollapsed = sidebar.classList.toggle('collapsed');
+  if (btn) btn.style.opacity = isCollapsed ? '0.45' : '1';
+}
+
+// View Navigation
+
+function showView(view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.sidebar-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  document.getElementById('nav-'  + view).classList.add('active');
+  if (view === 'database') renderDatabase();
+  if (view === 'setup')    renderTournament();
+  if (view === 'settings') { checkForUpdates(); applyGuestUI(); }
+}
+
+// Theme and Scale
+
+function changeTheme(theme) {
+  state.theme = theme;
+  document.body.className = theme === 'dark' ? '' : 'theme-' + theme;
+  if (theme === 'glass') applyGradientMode(state.gradientMode);
+  const gmGroup = document.getElementById('gradientModeGroup');
+  if (gmGroup) gmGroup.style.display = theme === 'glass' ? '' : 'none';
+  document.getElementById('themeSelect').value = theme;
+  saveState();
+}
+
+function changeGradientMode(mode) {
+  state.gradientMode = mode;
+  applyGradientMode(mode);
+  const sel = document.getElementById('gradientModeSelect');
+  if (sel) sel.value = mode;
+  saveState();
+}
+
+function applyGradientMode(mode) {
+  if (mode === 'animated') document.body.classList.add('glass-animated');
+  else                     document.body.classList.remove('glass-animated');
+}
+
+function changeScale(val) {
+  state.scale = val;
+  document.documentElement.style.setProperty('--app-scale', val);
+  document.getElementById('scaleValue').innerText  = Math.round(val * 100) + '%';
+  document.getElementById('scaleRange').value       = val;
+  saveState();
+}
+
+// Database / Player Registry
+
+/** Re-renders the player table based on current state and search query. */
+function renderDatabase() {
+  const tbody      = document.getElementById('dbTableBody');
+  const header     = document.getElementById('dbHeader');
+  const wrap       = document.querySelector('.db-table-wrap');
+  const searchEl   = document.getElementById('dbSearch');
+  const query      = searchEl.value.toLowerCase();
+  const filtered   = state.dbPlayers.filter(p => p.name.toLowerCase().includes(query));
+  const dbCalcBtn  = document.getElementById('dbCalcBtn');
+  const monthBadge = document.getElementById('monthBadge');
+
+  // Show the month badge when the registry has data
+  if (monthBadge) {
+    if (state.dbPlayers.length > 0) {
+      monthBadge.textContent   = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
+      monthBadge.style.display = '';
+    } else {
+      monthBadge.style.display = 'none';
+    }
+  }
+
+  if (wrap)       wrap.classList.toggle('needs-scroll', state.dbPlayers.length > 11);
+  searchEl.style.display = state.dbPlayers.length > 0 ? '' : 'none';
+  if (dbCalcBtn) {
+    dbCalcBtn.style.display = state.dbPlayers.length > 0 ? '' : 'none';
+    dbCalcBtn.style.opacity = isGuest() ? '0.45' : '1';
+    dbCalcBtn.title         = isGuest() ? 'Not available for Guest accounts' : '';
+  }
+
+  if (state.dbPlayers.length === 0) {
+    header.style.display = 'none';
+    tbody.innerHTML = `<tr><td colspan="5">
+      <div class="empty-state">
+        <div class="empty-icon">♟️</div>
+        <p class="empty-msg">The board's looking great.</p>
+        <p class="empty-sub">It'd look even better with some players.</p>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  header.style.display = '';
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-dim)">No players found matching "${query}"</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = '';
+  [...filtered].sort((a, b) => b.rating - a.rating).forEach((p, i) => {
+    const link          = (p.chesscom && p.chesscom !== '-')
+      ? `<a href="https://www.chess.com/member/${p.chesscom}" target="_blank" style="color:var(--gold)">${p.chesscom}</a>`
+      : '-';
+    const ratingDisplay = p.precluded
+      ? `<span style="color:#c06060; font-family:'DM Sans',sans-serif; font-weight:600;">Precluded</span>`
+      : p.rating;
+    tbody.innerHTML += `<tr>
+      <td class="td-mono">${i + 1}</td>
+      <td style="font-weight:600; color:var(--cream)">${p.name}</td>
+      <td class="td-mono" style="color:var(--gold)">${ratingDisplay}</td>
+      <td class="td-mono">${link}</td>
+      <td>
+        <button class="btn btn-outline btn-sm" onclick="editDbPlayer('${p.id}')">Edit</button>
+        <button class="btn btn-danger  btn-sm" onclick="deleteDbPlayer('${p.id}')">Delete</button>
+      </td>
+    </tr>`;
+  });
+}
+
+let _playerEditId = null;
+
+/** Opens the add/edit player modal. Pass an id to edit, or null to add. */
+function openPlayerModal(editId) {
+  _playerEditId = editId || null;
+  const isEdit  = !!_playerEditId;
+
+  document.getElementById('playerDialogTitle').textContent = isEdit ? 'Edit Player' : 'Add Player';
+  document.getElementById('playerDialogIcon').textContent  = isEdit ? '✏️' : '♟';
+  document.getElementById('playerSubmitBtn').textContent   = isEdit ? 'Save Changes' : 'Add Player';
+
+  if (isEdit) {
+    const p = state.dbPlayers.find(x => x.id === _playerEditId);
+    document.getElementById('pf-name').value    = p.name;
+    document.getElementById('pf-rating').value  = p.rating;
+    document.getElementById('pf-chesscom').value = p.chesscom === '-' ? '' : p.chesscom;
+  } else {
+    document.getElementById('pf-name').value    = '';
+    document.getElementById('pf-rating').value  = '';
+    document.getElementById('pf-chesscom').value = '';
+  }
+
+  document.getElementById('playerOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('pf-name').focus(), 60);
+
+  document.getElementById('playerOverlay').onkeydown = e => {
+    if (e.key === 'Enter')  { e.preventDefault(); submitPlayerModal(); }
+    if (e.key === 'Escape')   closePlayerModal();
+  };
+}
+
+function closePlayerModal() {
+  document.getElementById('playerOverlay').classList.remove('open');
+  _playerEditId = null;
+}
+
+/** Validates and saves the player from the add/edit form. */
+function submitPlayerModal() {
+  const name     = document.getElementById('pf-name').value.trim();
+  if (!name) { document.getElementById('pf-name').focus(); return; }
+
+  const rating   = parseInt(document.getElementById('pf-rating').value)   || 0;
+  const chesscom = document.getElementById('pf-chesscom').value.trim()     || '-';
+
+  if (_playerEditId) {
+    // Editing an existing player
+    const p = state.dbPlayers.find(x => x.id === _playerEditId);
+    if (p) { p.name = name; p.rating = rating; p.chesscom = chesscom; }
+  } else {
+    // Adding a new player — enforce guest cap
+    if (isGuest() && state.dbPlayers.length >= GUEST_MAX_PLAYERS) {
+      closePlayerModal();
+      showAlert(
+        '🔒 Player Cap Reached',
+        `Guest accounts are limited to ${GUEST_MAX_PLAYERS} players. Select a school account to add unlimited players.`
+      );
+      return;
+    }
+    state.dbPlayers.push({
+      id:       Date.now().toString() + Math.random().toString(36).slice(2),
+      name, rating, chesscom
+    });
+  }
+
+  saveState();
+  renderDatabase();
+  closePlayerModal();
+}
+
+function addDbPlayer()         { openPlayerModal(null); }
+function editDbPlayer(id)      { openPlayerModal(id); }
+
+// Export / Import
+
+/** Opens the export format chooser. Blocked for guest accounts. */
+function openExportModal() {
+  if (isGuest()) { showGuestRestriction('Export'); return; }
+  if (state.dbPlayers.length === 0) return showAlert('Nothing to Export', 'Add some players to the registry first.');
+  document.getElementById('exportModalOverlay').classList.add('open');
+}
+function closeExportModal() {
+  document.getElementById('exportModalOverlay').classList.remove('open');
+}
+
+/** Exports a numbered name list as a .txt file. */
+function exportCatalogue() {
+  if (isGuest()) { showGuestRestriction('Export'); return; }
+  if (state.dbPlayers.length === 0) return showAlert('Nothing to Export', 'Add some players first.');
+  const sorted = [...state.dbPlayers].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  const lines  = sorted.map((p, i) => `${i + 1}. ${p.name.trim()}`);
+  downloadText(lines.join('\n'), 'players.txt');
+  showToast(`✓ Exported ${lines.length} player${lines.length !== 1 ? 's' : ''} to players.txt`, 'gold');
+}
+
+/** Exports the full registry as a .db (JSON) file. */
+function exportDatabase() {
+  if (isGuest()) { showGuestRestriction('Export'); return; }
+  if (state.dbPlayers.length === 0) return showAlert('Nothing to Export', 'Add some players first.');
+  const payload = state.dbPlayers.map(p => {
+    const parts = p.name.trim().split(' ');
+    return { name: parts[0] || p.name, surname: parts.slice(1).join(' ') || '', rating: p.rating, chesscom: p.chesscom === '-' ? '' : p.chesscom };
+  });
+  downloadText(JSON.stringify(payload, null, 2), 'players.db');
+  showToast(`✓ Exported ${payload.length} player${payload.length !== 1 ? 's' : ''} to players.db`, 'gold');
+}
+
+/** Helper: triggers a file download with text content. */
+function downloadText(content, filename) {
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Opens the import source chooser. Blocked for guest accounts. */
+function openImportSourceModal() {
+  if (isGuest()) { showGuestRestriction('Import'); return; }
+  document.getElementById('importSourceOverlay').classList.add('open');
+}
+function closeImportSourceModal() {
+  document.getElementById('importSourceOverlay').classList.remove('open');
+}
+
+function chooseImportLocal() {
+  closeImportSourceModal();
+  if (isGuest()) { showGuestRestriction('Import'); return; }
+  document.getElementById('localDbInput').value = '';
+  document.getElementById('localDbInput').click();
+}
+
+function chooseImportOnline() {
+  closeImportSourceModal();
+  if (isGuest()) { showGuestRestriction('Import'); return; }
+  proceedWithImport();
+}
+
+/** Proceeds with the online import, showing Izotsha's DB selector if needed. */
+function proceedWithImport() {
+  if (state.selectedSchool === 'izotsha') {
+    document.getElementById('dbSelectOverlay').classList.add('open');
+  } else {
+    fetchOnlineDB(SCHOOLS[state.selectedSchool].playersUrl);
+  }
+}
+
+function closeDbSelectModal() {
+  document.getElementById('dbSelectOverlay').classList.remove('open');
+}
+
+/** Handles local .db/.json file selection via the hidden file input. */
+function handleLocalImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const players = JSON.parse(e.target.result);
+      if (!Array.isArray(players)) throw new Error('Expected a JSON array');
+      const { added, skipped } = mergePlayers(players);
+      saveState();
+      renderDatabase();
+      showToast(`✓ Imported ${added} player${added !== 1 ? 's' : ''} (${skipped} skipped)`, 'gold');
+    } catch (err) {
+      showToast(`✗ Import failed: ${err.message}`, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/** Fetches a player list from a URL and merges it into the registry. */
+async function fetchOnlineDB(url) {
+  closeDbSelectModal();
+
+  const statusEl = document.createElement('div');
+  statusEl.style.cssText = 'position:fixed; bottom:24px; right:24px; background:var(--surface); border:1px solid var(--border2); border-radius:8px; padding:12px 18px; font-size:0.85rem; color:var(--text); box-shadow:0 8px 24px rgba(0,0,0,0.4); z-index:500; transition:opacity 0.3s;';
+  statusEl.textContent   = '⏳ Fetching player list…';
+  document.body.appendChild(statusEl);
+
+  const dismiss = (msg, color, delay = 3000) => {
+    statusEl.textContent   = msg;
+    statusEl.style.color   = color;
+    setTimeout(() => { statusEl.style.opacity = '0'; setTimeout(() => statusEl.remove(), 300); }, delay);
+  };
+
+  try {
+    const res = await fetch(url + '?t=' + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const players = JSON.parse(await res.text());
+    if (!Array.isArray(players)) throw new Error('Expected a JSON array');
+    const { added, skipped } = mergePlayers(players);
+    saveState();
+    renderDatabase();
+    dismiss(`✓ Imported ${added} player${added !== 1 ? 's' : ''} (${skipped} skipped)`, 'var(--gold)', 4000);
+  } catch (e) {
+    dismiss(`✗ Import failed: ${e.message}`, '#c06060', 5000);
+  }
+}
+
+/**
+ * Merges an array of raw player objects into state.dbPlayers, skipping duplicates.
+ * @returns {{added: number, skipped: number}}
+ */
+function mergePlayers(rawPlayers) {
+  let added = 0, skipped = 0;
+  rawPlayers.forEach(p => {
+    const name = (p.name || '').trim() + (p.surname ? ' ' + p.surname.trim() : '');
+    if (!name) { skipped++; return; }
+    const exists = state.dbPlayers.some(x => x.name.toLowerCase() === name.toLowerCase());
+    if (exists) { skipped++; return; }
+    state.dbPlayers.push({
+      id:       Date.now().toString() + Math.random().toString(36).slice(2),
+      name,
+      rating:   parseInt(p.rating) || 1200,
+      chesscom: p.chesscom || p.chess_com || '-'
+    });
+    added++;
+  });
+  return { added, skipped };
+}
+
+function purgeDatabase() {
+  if (state.dbPlayers.length === 0) return showAlert('Database Empty', 'There are no players to remove.');
+  showConfirm(
+    'Purge Database',
+    `This will permanently delete all ${state.dbPlayers.length} player${state.dbPlayers.length !== 1 ? 's' : ''} from the registry. This cannot be undone.`,
+    'Purge All',
+    () => { state.dbPlayers = []; saveState(); renderDatabase(); showToast('🗑 Database purged', 'error'); }
+  );
+}
+
+// Delete single player
+let _deleteId = null;
+function deleteDbPlayer(id) {
+  const p = state.dbPlayers.find(x => x.id === id);
+  if (!p) return;
+  _deleteId = id;
+  document.getElementById('delPlayerName').textContent = p.name;
+  document.getElementById('delOverlay').classList.add('open');
+  const handler = e => {
+    if (e.key === 'Enter')  { confirmDelete();  document.removeEventListener('keydown', handler); }
+    else if (e.key === 'Escape') { closeDelModal(); document.removeEventListener('keydown', handler); }
+  };
+  document.addEventListener('keydown', handler);
+}
+function closeDelModal() { document.getElementById('delOverlay').classList.remove('open'); _deleteId = null; }
+function confirmDelete() {
+  if (_deleteId) {
+    state.dbPlayers = state.dbPlayers.filter(x => x.id !== _deleteId);
+    saveState();
+    renderDatabase();
+    closeDelModal();
+  }
+}
+
+// Chess.com Rating Calculator
+
+/**
+ * Fetches Chess.com stats for every player that has a username set,
+ * then updates their rating in state. Blocked for guest accounts.
+ */
+async function calculateChessRatings() {
+  if (isGuest()) { showGuestRestriction('Rating calculation'); return; }
+
+  const candidates = state.dbPlayers.filter(p => p.chesscom && p.chesscom !== '-');
+  if (candidates.length === 0)
+    return showAlert('No Usernames Found', 'No players have a Chess.com username set. Add usernames via Edit.');
+
+  const calcSvg = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="flex-shrink:0"><rect x="1" y="1" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M4 6.5h5M6.5 4v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Calculate';
+
+  // Disable both Calculate buttons during operation
+  const setCalcBtns = (loading) => {
+    [document.getElementById('calcRatingsBtn'), document.getElementById('dbCalcBtn')].forEach(btn => {
+      if (!btn) return;
+      btn.disabled = loading;
+      btn.innerHTML = loading ? '⏳ Fetching…' : calcSvg;
+    });
+  };
+  setCalcBtns(true);
+
+  // Progress toast
+  const progressToast = document.createElement('div');
+  progressToast.id = 'calcProgressToast';
+  progressToast.style.cssText = 'position:fixed; bottom:28px; left:50%; transform:translateX(-50%); background:var(--surface); border:1px solid var(--border2); border-radius:8px; padding:10px 22px; font-size:0.82rem; font-weight:500; color:var(--gold); box-shadow:0 8px 28px rgba(0,0,0,0.45); z-index:2000; white-space:nowrap;';
+  progressToast.textContent = `Calculating ratings (0 / ${candidates.length})...`;
+  document.body.appendChild(progressToast);
+
+  let updated = 0, failed = 0, noData = 0, precluded = 0;
+  const NOW_SEC   = Math.floor(Date.now() / 1000);
+  const LIMIT_SEC = 31 * 24 * 60 * 60; // 31 days
+
+  for (let i = 0; i < candidates.length; i++) {
+    const player = candidates[i];
+    progressToast.textContent = `Calculating ratings (${i + 1} / ${candidates.length}) — ${player.chesscom}`;
+    
+    // Here we pull the data from Chess.com servers to plug into the formula for rating computation.
+    // This sucked when I used to do it manually :/
+    try {
+      const res = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(player.chesscom)}/stats`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!res.ok) { failed++; continue; }
+
+      const data          = await res.json();
+      const ratings       = [];
+      let hasRecentGame   = false;
+
+      // Collect ratings from all time controls; check for recent activity
+      const timeControls = [
+        data.chess_rapid,
+        data.chess_blitz,
+        data.chess_bullet,
+        data.chess_daily
+      ];
+      timeControls.forEach(tc => {
+        if (tc?.last?.rating) {
+          if (tc.last.date && (NOW_SEC - tc.last.date) <= LIMIT_SEC) hasRecentGame = true;
+          // Only rapid and blitz count toward the rating average since bullet is sparse and daily is inconsistent.
+          if (tc === data.chess_rapid || tc === data.chess_blitz) ratings.push(tc.last.rating);
+        }
+      });
+
+      // Tactics rating (averaged between highest and lowest)
+      if (data.tactics?.highest?.rating && data.tactics?.lowest?.rating) {
+        ratings.push(Math.round((data.tactics.highest.rating + data.tactics.lowest.rating) / 2));
+      }
+
+      if (ratings.length > 0 && !hasRecentGame) {
+        player.precluded = true;
+        precluded++;
+      } else if (ratings.length > 0) {
+        player.rating    = Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length);
+        player.precluded = false;
+        updated++;
+      } else {
+        noData++;
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  progressToast.remove();
+  setCalcBtns(false);
+
+  // Hide dbCalcBtn after calculations (restore its display state)
+  // On previous versions, the program used to crash if too many request were sent to the API
+  // This is to avoid big time spamming since the function only needs to be executed once, not concurrently!
+  const dbBtn = document.getElementById('dbCalcBtn');
+  if (dbBtn) dbBtn.style.display = state.dbPlayers.length > 0 ? '' : 'none';
+
+  saveState();
+  renderDatabase();
+
+  let msg = `✓ Updated ${updated} player${updated !== 1 ? 's' : ''}`;
+  if (precluded > 0) msg += ` · ${precluded} precluded`;
+  if (noData    > 0) msg += ` · ${noData} had no rated games`;
+  if (failed    > 0) msg += ` · ${failed} failed`;
+  showToast(msg, updated > 0 ? 'gold' : 'error');
+}
+
+// Participant Selection
+
+let _pendingParticipants  = new Set();
+let _participantManageMode = false;
+
+function openParticipantModal() {
+  _participantManageMode = false;
+  _pendingParticipants   = new Set(state.dbPlayers.map(p => p.id));
+  document.getElementById('participantModalTitle').textContent   = 'Select Participants';
+  document.getElementById('participantModalDesc').textContent    = 'Choose which players are competing in this tournament. Only selected players will be paired.';
+  document.getElementById('participantConfirmBtn').textContent   = 'Start Tournament';
+  document.getElementById('timerSetArea').style.display         = 'flex';
+  document.getElementById('roundMinutesDisplay').textContent    = _roundMinutes === 0 ? 'No limit' : `${_roundMinutes} min`;
+  renderParticipantList();
+  document.getElementById('participantOverlay').classList.add('open');
+}
+
+function openManageParticipants() {
+  _participantManageMode = true;
+  const current          = state.tournament.participants || state.dbPlayers;
+  _pendingParticipants   = new Set(current.map(p => p.id));
+  document.getElementById('participantModalTitle').textContent   = 'Manage Participants';
+  document.getElementById('participantModalDesc').textContent    = 'Add late arrivals or remove players who have left. Changes take effect from the next round.';
+  document.getElementById('participantConfirmBtn').textContent   = 'Save Changes';
+  document.getElementById('timerSetArea').style.display         = 'flex';
+  document.getElementById('roundMinutesDisplay').textContent    = _roundMinutes === 0 ? 'No limit' : `${_roundMinutes} min`;
+  renderParticipantList();
+  document.getElementById('participantOverlay').classList.add('open');
+}
+
+function closeParticipantModal() {
+  document.getElementById('participantOverlay').classList.remove('open');
+}
+
+function renderParticipantList() {
+  const list      = document.getElementById('participantList');
+  const countEl   = document.getElementById('participantCount');
+  const confirmBtn = document.getElementById('participantConfirmBtn');
+
+  list.innerHTML = state.dbPlayers.map(p => {
+    const checked      = _pendingParticipants.has(p.id);
+    const ratingLabel  = p.rating
+      ? `<span class="badge" style="font-family:'DM Mono',monospace; font-size:0.72rem;">${p.rating}</span>`
+      : '';
+    return `<label style="display:flex; align-items:center; gap:12px; padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--border); transition:background 0.1s;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+      <input type="checkbox" style="accent-color:var(--gold); width:16px; height:16px; cursor:pointer;" ${checked ? 'checked' : ''} onchange="toggleParticipant('${p.id}')">
+      <span style="flex:1; font-weight:600; color:var(--cream); font-size:0.88rem; text-transform:none;">${p.name}</span>
+      ${ratingLabel}
+    </label>`;
+  }).join('');
+
+  const n = _pendingParticipants.size;
+  countEl.textContent    = `${n} player${n !== 1 ? 's' : ''} selected`;
+  confirmBtn.disabled    = n < 2;
+}
+
+function toggleParticipant(id) {
+  if (_pendingParticipants.has(id)) _pendingParticipants.delete(id);
+  else _pendingParticipants.add(id);
+  renderParticipantList();
+}
+
+function selectAllParticipants(select) {
+  _pendingParticipants = select ? new Set(state.dbPlayers.map(p => p.id)) : new Set();
+  renderParticipantList();
+}
+
+function confirmParticipants() {
+  const selected = state.dbPlayers.filter(p => _pendingParticipants.has(p.id));
+  if (selected.length < 2) return;
+  state.tournament.participants = selected;
+  closeParticipantModal();
+  if (_participantManageMode) {
+    saveState();
+    renderTournament();
+    showToast(`✓ Participants updated — ${selected.length} player${selected.length !== 1 ? 's' : ''} in tournament`, 'gold');
+  } else {
+    runSwissPairings();
+  }
+}
+
+// Swiss Tournament Engine
+// It was an idea to have different sorting algorithms, however round-robin and FIDE are too complicated for right now.
+// This is why swiss was chosen - most official tournaments use it and it is simple to understand.
+// The players with the highest scores are paired up, so a player with 4 points will verse a player who also has 4 points. They will fight for who gets to 5 points - this repeats per round.
+// The initial round is rating based, so you wont have a 1200 player VS. a 232 rated player fighting for the 1st point.
+
+/** Computes the current score for every participant. */
+function swissScores() {
+  const s = {};
+  const participants = state.tournament.participants || state.dbPlayers;
+  participants.forEach(p => s[p.name] = 0);
+  (state.tournament.rounds || []).forEach(round => {
+    round.forEach(p => {
+      if (p.b === 'BYE') { s[p.w.name] = (s[p.w.name] || 0) + 1; return; }
+      if (p.result === '1-0')  s[p.w.name] = (s[p.w.name] || 0) + 1;
+      if (p.result === '0-1')  s[p.b.name] = (s[p.b.name] || 0) + 1;
+      if (p.result === '1/2') {
+        s[p.w.name] = (s[p.w.name] || 0) + 0.5;
+        s[p.b.name] = (s[p.b.name] || 0) + 0.5;
+      }
+    });
+  });
+  return s;
+}
+
+/** Builds a map of each player's previous opponents (for repeat avoidance). */
+function swissOpponents() {
+  const h = {};
+  const participants = state.tournament.participants || state.dbPlayers;
+  participants.forEach(p => h[p.name] = new Set());
+  (state.tournament.rounds || []).forEach(round => {
+    round.forEach(p => {
+      if (p.b === 'BYE') return;
+      if (!h[p.w.name]) h[p.w.name] = new Set();
+      if (!h[p.b.name]) h[p.b.name] = new Set();
+      h[p.w.name].add(p.b.name);
+      h[p.b.name].add(p.w.name);
+    });
+  });
+  return h;
+}
+
+/**
+ * Entry point for generating the next round.
+ * Validates state before proceeding:
+ *   - Ensures at least 2 players in the DB
+ *   - Ensures the last round is fully scored
+ *   - Enforces guest round cap
+ *   - Opens participant modal for round 1
+ */
+function generateSwissPairings() {
+  if (state.dbPlayers.length < 2)
+    return showAlert('Not Enough Players', 'You need at least 2 players in the database to start a tournament.');
+
+  const lastRound = (state.tournament.rounds || []).slice(-1)[0];
+  if (lastRound && lastRound.some(p => p.b !== 'BYE' && p.result === null))
+    return showAlert('Round Incomplete', 'Please enter all results for the current round before generating new pairings.');
+
+  // Enforce guest round cap (after the current round is complete)
+  if (isGuest() && state.tournament.round >= GUEST_MAX_ROUNDS) {
+    showAlert(
+      '🔒 Round Limit Reached',
+      `Guest accounts are limited to ${GUEST_MAX_ROUNDS} rounds. Select a school account to run full-length tournaments.`
+    );
+    return;
+  }
+
+  if (state.tournament.round === 0) {
+    openParticipantModal(); // Collect participants before first round
+    return;
+  }
+
+  runSwissPairings();
+}
+
+/**
+ * Generates Swiss pairings for the next round using a greedy algorithm:
+ *   1. Sort players by score desc, then rating desc (as tiebreaker)
+ *   2. Assign a BYE to a low-score player who hasn't had one yet (odd count)
+ *   3. Pair each player with the highest-ranked unpaired player they haven't faced
+ */
+function runSwissPairings() {
+  const participants = state.tournament.participants || state.dbPlayers;
+  if (participants.length < 2)
+    return showAlert('Not Enough Players', 'You need at least 2 participants to generate pairings.');
+
+  const scores    = swissScores();
+  const opponents = swissOpponents();
+  const byeHistory = state.tournament.byeHistory || [];
+
+  const players = [...participants].sort((a, b) =>
+    (scores[b.name] || 0) - (scores[a.name] || 0) || b.rating - a.rating
+  );
+
+  let byePlayer = null;
+  let pool = [...players];
+
+  // Assign BYE to the lowest-ranked player who hasn't had one yet
+  if (pool.length % 2 === 1) {
+    for (let i = pool.length - 1; i >= 0; i--) {
+      if (!byeHistory.includes(pool[i].name)) { byePlayer = pool[i]; break; }
+    }
+    if (!byePlayer) byePlayer = pool[pool.length - 1]; // Fallback: repeat BYE
+    pool = pool.filter(p => p.name !== byePlayer.name);
+  }
+
+  const paired      = new Set();
+  const newPairings = [];
+
+  for (let i = 0; i < pool.length; i++) {
+    if (paired.has(pool[i].name)) continue;
+    const p1 = pool[i];
+    let partner = null;
+
+    // Prefer an opponent not yet faced
+    for (let j = i + 1; j < pool.length; j++) {
+      if (paired.has(pool[j].name)) continue;
+      if (!opponents[p1.name]?.has(pool[j].name)) { partner = pool[j]; break; }
+    }
+    // Fallback: any unpaired player
+    if (!partner) {
+      for (let j = i + 1; j < pool.length; j++) {
+        if (!paired.has(pool[j].name)) { partner = pool[j]; break; }
+      }
+    }
+
+    if (partner) {
+      paired.add(p1.name);
+      paired.add(partner.name);
+      newPairings.push({ w: p1, b: partner, result: null });
+    }
+  }
+
+  if (byePlayer) {
+    newPairings.push({ w: byePlayer, b: 'BYE', result: '1-0' });
+    if (!state.tournament.byeHistory) state.tournament.byeHistory = [];
+    state.tournament.byeHistory.push(byePlayer.name);
+  }
+
+  state.tournament.round++;
+  if (!state.tournament.rounds) state.tournament.rounds = [];
+  state.tournament.rounds.push(newPairings);
+
+  saveState();
+  renderTournament();
+  startRoundTimer();
+}
+
+/** Records a result for a pairing in the current round. */
+function setScore(index, res) {
+  const round = state.tournament.rounds[state.tournament.round - 1];
+  if (round) round[index].result = res;
+  saveState();
+  renderTournament();
+}
+
+/** Renders the pairings table and live standings for the current round. */
+function renderTournament() {
+  const pBody  = document.getElementById('pairingsBody');
+  const sBody  = document.getElementById('standingsBody');
+  const badge  = document.getElementById('roundBadge');
+  const round  = state.tournament.round;
+  const rounds = state.tournament.rounds || [];
+  const currentRound = rounds[round - 1] || [];
+
+  badge.innerText     = 'Round ' + round;
+  badge.style.display = round >= 1 ? '' : 'none';
+  document.getElementById('pairingsBtn').textContent = round === 0 ? 'Start Tournament' : 'Next Round Pairings';
+
+  const manageBtn = document.getElementById('manageBtn');
+  if (manageBtn) manageBtn.style.display = round >= 1 ? '' : 'none';
+
+  const content = document.getElementById('tournamentContent');
+  const empty   = document.getElementById('tournamentEmpty');
+  if (round === 0) {
+    if (content) content.style.display = 'none';
+    if (empty)   empty.style.display   = '';
+    return;
+  }
+  if (content) content.style.display = 'grid';
+  if (empty)   empty.style.display   = 'none';
+
+  // Render pairings
+  pBody.innerHTML = '';
+  currentRound.forEach((p, i) => {
+    const isBye = p.b === 'BYE';
+    pBody.innerHTML += `<tr>
+      <td>${p.w.name}</td>
+      <td style="color:var(--text-dim)">vs</td>
+      <td>${isBye ? '<span style="color:var(--text-dim);font-style:italic">BYE</span>' : p.b.name}</td>
+      <td>${isBye ? '<span class="badge">Auto Win</span>' : `
+        <button class="btn btn-outline btn-sm ${p.result === '1-0' ? 'btn-result-active' : ''}" onclick="setScore(${i},'1-0')">1-0</button>
+        <button class="btn btn-outline btn-sm ${p.result === '1/2' ? 'btn-result-active' : ''}" onclick="setScore(${i},'1/2')">½</button>
+        <button class="btn btn-outline btn-sm ${p.result === '0-1' ? 'btn-result-active' : ''}" onclick="setScore(${i},'0-1')">0-1</button>`}
+      </td>
+    </tr>`;
+  });
+
+  // Render standings
+  sBody.innerHTML = '';
+  Object.entries(swissScores()).sort(([,a],[,b]) => b - a).forEach(([name, score], i) => {
+    const medal = i === 0 ? '🥇 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : '';
+    sBody.innerHTML += `<tr><td>${medal}${name}</td><td class="td-mono" style="color:var(--gold)">${score}</td></tr>`;
+  });
+
+  const pw = document.getElementById('pairingsWrap');
+  const sw = document.getElementById('standingsWrap');
+  if (pw) pw.classList.toggle('needs-scroll', currentRound.length > 11);
+  if (sw) sw.classList.toggle('needs-scroll', Object.keys(swissScores()).length > 11);
+}
+
+function copyParticipants() {
+  const participants = state.tournament.participants;
+  if (!participants || participants.length === 0)
+    return showAlert('No Participants', 'No tournament is active. Start a tournament first.');
+  const text = participants.map((p, i) => `${i + 1}. ${p.name}`).join('\n');
+  navigator.clipboard.writeText(text).then(() =>
+    showToast(`✓ ${participants.length} participant${participants.length !== 1 ? 's' : ''} copied to clipboard`, 'gold')
+  );
+}
+
+function copyStandings() {
+  if (!state.tournament.rounds || state.tournament.rounds.length === 0)
+    return showAlert('No Standings Yet', 'There is no active tournament. Start a tournament first.');
+  let text = `Standings after Round ${state.tournament.round}:\n`;
+  Object.entries(swissScores()).sort(([,a],[,b]) => b - a).forEach(([name, score], i) => {
+    text += `${i + 1}. ${name}: ${score}\n`;
+  });
+  navigator.clipboard.writeText(text).then(() => showToast('✓ Standings copied to clipboard', 'gold'));
+}
+
+function resetTournament() {
+  if (!state.tournament.rounds || state.tournament.rounds.length === 0)
+    return showAlert('Nothing to Reset', 'There is no active tournament to reset.');
+  showConfirm('Reset Tournament', 'This will clear all rounds, pairings, and scores. This cannot be undone.', 'Reset', () => {
+    state.tournament = { round: 0, rounds: [], byeHistory: [], participants: [] };
+    saveState();
+    renderTournament();
+    stopRoundTimer();
+    showToast('🗘 Tournament reset', 'error');
+  });
+}
+
+// Round Timer
+// This is not an essential feature, however a quality of life improvement that I added with v2.260323.
+// Without this idea, the learners take too long to finish a game - this enforces strict round DEADLINES!
+// I usually find myself setting a timer on my phone since many learners do not play with clocks. This feature makes that process native so that you don't have to use your phone anymore
+
+let _roundMinutes   = 20;
+let _timerInterval  = null;
+let _timerSecondsLeft = 0;
+let _holdInterval   = null;
+let _holdTimeout    = null;
+
+function adjustRoundMinutes(delta) {
+  _roundMinutes = Math.max(0, _roundMinutes + delta);
+  document.getElementById('roundMinutesDisplay').textContent =
+    _roundMinutes === 0 ? 'No limit' : `${_roundMinutes} min`;
+}
+
+/** Starts accelerated hold-to-scroll on the +/− timer buttons since it is annoying to wait for the timer to reach, for example, 240min when the timer updates once per second. */
+/** It would mean that without this, you'd have to wait 4 minutes to set a 4 hour tournament - etc. */
+function startHold(delta) {
+  adjustRoundMinutes(delta);
+  _holdTimeout = setTimeout(() => {
+    let speed = 200, ticks = 0;
+    function fire() {
+      ticks++;
+      adjustRoundMinutes(delta);
+      if (ticks === 5)  { clearInterval(_holdInterval); speed = 80;  _holdInterval = setInterval(fire, speed); }
+      if (ticks === 15) { clearInterval(_holdInterval); speed = 40;  _holdInterval = setInterval(fire, speed); }
+      if (ticks === 35) { clearInterval(_holdInterval); speed = 16;  _holdInterval = setInterval(fire, speed); }
+    }
+    _holdInterval = setInterval(fire, speed);
+  }, 400);
+}
+
+function endHold() {
+  if (_holdTimeout)  { clearTimeout(_holdTimeout);   _holdTimeout  = null; }
+  if (_holdInterval) { clearInterval(_holdInterval); _holdInterval = null; }
+}
+
+function startRoundTimer() {
+  stopRoundTimer();
+  if (_roundMinutes === 0) return;
+  _timerSecondsLeft = _roundMinutes * 60;
+  document.getElementById('headerTimer').classList.add('visible');
+  updateTimerDisplay();
+  _timerInterval = setInterval(() => {
+    _timerSecondsLeft--;
+    updateTimerDisplay();
+    if (_timerSecondsLeft <= 0) {
+      clearInterval(_timerInterval);
+      _timerInterval = null;
+      playChime();
+      document.getElementById('timerDisplay').classList.add('expired');
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const el    = document.getElementById('timerDisplay');
+  const total = Math.max(0, _timerSecondsLeft);
+  const h     = Math.floor(total / 3600);
+  const m     = Math.floor((total % 3600) / 60);
+  const s     = total % 60;
+  el.textContent = h > 0
+    ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+    : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  el.classList.toggle('urgent',  _timerSecondsLeft > 0 && _timerSecondsLeft <= 60);
+  el.classList.toggle('expired', _timerSecondsLeft <= 0);
+}
+
+function stopRoundTimer() {
+  if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+  const timerEl = document.getElementById('headerTimer');
+  timerEl.classList.remove('visible');
+  document.getElementById('timerDisplay').classList.remove('urgent', 'expired');
+}
+
+/** Plays a short ascending chime when the round timer expires. */
+function playChime() {
+  try {
+    const ctx   = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type             = 'sine';
+      osc.frequency.value  = freq;
+      const t = ctx.currentTime + i * 0.18;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.28, t + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.9);
+      osc.start(t);
+      osc.stop(t + 0.9);
+    });
+  } catch (e) { /* AudioContext may be unavailable in some environments */ }
+}
+
+// PIN Modal
+
+let pinBuffer    = '';
+let _pinContext  = ''; // 'switchSchool' | 'developer'
+let _pinTarget   = ''; // school id when context is 'switchSchool'
+let _expectedPin = '';
+
+/**
+ * Opens the PIN modal configured for a specific context.
+ * @param {'switchSchool'|'developer'} context
+ * @param {string} target  - school id (only used for 'switchSchool')
+ * @param {string} pin     - the expected PIN digits
+ */
+function openPinModal(context, target, pin) {
+  _pinContext  = context;
+  _pinTarget   = target;
+  _expectedPin = pin;
+  pinBuffer    = '';
+
+  // Customise copy for developer context
+  const isDev = context === 'developer';
+  document.getElementById('pinIcon').textContent     = isDev ? '🛠' : '🔐';
+  document.getElementById('pinTitle').textContent    = isDev ? 'Developer Access' : 'Authentication Required';
+  document.getElementById('pinSubtitle').textContent = isDev ? 'Enter developer PIN' : 'Enter PIN to continue';
+
+  updatePinDots();
+  document.getElementById('pinError').textContent = '';
+  document.getElementById('pinEnter').disabled    = true;
+  document.getElementById('pinOverlay').classList.add('open');
+  document.addEventListener('keydown', pinKeyHandler);
+}
+
+function closePinModal() {
+  document.getElementById('pinOverlay').classList.remove('open');
+  document.removeEventListener('keydown', pinKeyHandler);
+  pinBuffer = '';
+  updatePinDots();
+  document.getElementById('pinError').textContent = '';
+}
+
+function pinKeyHandler(e) {
+  if ((e.key >= '0' && e.key <= '9') ||
+      (e.code?.startsWith('Numpad') && e.key >= '0' && e.key <= '9')) {
+    e.preventDefault();
+    pinKey(e.key);
+    // Flash the pressed key button
+    document.querySelectorAll('.pin-key:not(.pin-clear):not(.pin-enter)').forEach(b => {
+      if (b.textContent.trim() === e.key) {
+        b.style.background = 'var(--surface3)';
+        setTimeout(() => b.style.background = '', 120);
+      }
+    });
+  } else if (e.key === 'Backspace') { e.preventDefault(); pinBackspace(); }
+  else if (e.key === 'Enter')       { e.preventDefault(); if (!document.getElementById('pinEnter').disabled) pinSubmit(); }
+  else if (e.key === 'Escape')        closePinModal();
+}
+
+function pinKey(digit) {
+  if (pinBuffer.length >= _expectedPin.length) return;
+  pinBuffer += digit;
+  updatePinDots();
+  if (pinBuffer.length === _expectedPin.length)
+    document.getElementById('pinEnter').disabled = false;
+}
+
+function pinBackspace() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  document.getElementById('pinEnter').disabled = true;
+  updatePinDots();
+}
+
+function updatePinDots() {
+  const container = document.getElementById('pinDots');
+  container.innerHTML = '';
+  for (let i = 0; i < _expectedPin.length; i++) {
+    const d = document.createElement('div');
+    d.className = 'pin-dot' + (i < pinBuffer.length ? ' filled' : '');
+    container.appendChild(d);
+  }
+}
+
+/** Validates the entered PIN and dispatches to the appropriate handler. */
+async function pinSubmit() {
+  if (pinBuffer !== _expectedPin) {
+    const dots = document.getElementById('pinDots');
+    dots.classList.remove('shake');
+    void dots.offsetWidth; // Force reflow to replay animation
+    dots.classList.add('shake');
+    document.getElementById('pinError').textContent = 'Incorrect PIN — try again';
+    pinBuffer = '';
+    document.getElementById('pinEnter').disabled = true;
+    updatePinDots();
+    return;
+  }
+
+  closePinModal();
+
+  if (_pinContext === 'developer') {
+    openDevMenu();
+  } else if (_pinContext === 'switchSchool') {
+    await completeSwitchWithLicenseCheck(_pinTarget);
+  }
+}
+
+// Developer Easter Egg
+
+let _attributionClickCount = 0;    // Tracks rapid clicks on "made by armiel"
+let _attributionClickTimer = null; // Resets the counter after inactivity
+
+/**
+ * Called each time the attribution text is clicked.
+ * On the 5th consecutive click (within the timeout window), opens the
+ * developer PIN dialog. The counter resets after 3 seconds of no clicks.
+ */
+function handleAttributionClick() {
+  _attributionClickCount++;
+
+  // Reset the inactivity timer on each click
+  if (_attributionClickTimer) clearTimeout(_attributionClickTimer);
+  _attributionClickTimer = setTimeout(() => {
+    _attributionClickCount = 0;
+    _attributionClickTimer = null;
+  }, 3000);
+
+  if (_attributionClickCount >= 5) {
+    _attributionClickCount = 0;
+    clearTimeout(_attributionClickTimer);
+    _attributionClickTimer = null;
+    openPinModal('developer', '', DEV_PIN);
+  }
+}
+
+// Developer Menu
+
+let _devBypassEnabled = false; // Session-only; resets on page reload
+
+/** Opens the developer menu modal and syncs the toggle state. */
+function openDevMenu() {
+  document.getElementById('devMenuVersion').textContent      = CURRENT_VERSION;
+  document.getElementById('devBypassToggle').checked         = _devBypassEnabled;
+  document.getElementById('devBypassRow').className          =
+    'dev-row' + (_devBypassEnabled ? ' dev-bypass-active' : '');
+  document.getElementById('devOverlay').classList.add('open');
+}
+
+function closeDevMenu() {
+  document.getElementById('devOverlay').classList.remove('open');
+}
+
+/**
+ * Enables or disables the guest restriction bypass for this session.
+ * Updates the UI immediately to reflect the new state.
+ */
+function toggleDevBypass(enabled) {
+  _devBypassEnabled = enabled;
+  document.getElementById('devBypassRow').className =
+    'dev-row' + (enabled ? ' dev-bypass-active' : '');
+  // Refresh UI elements that depend on guest state
+  applyGuestUI();
+  renderDatabase();
+  showToast(
+    enabled ? '🛠 Guest restrictions bypassed' : '🛠 Guest restrictions restored',
+    'default'
+  );
+}
+
+// Update System
+
+let _latestVersion       = null;
+let _updateBannerDismissed = false;
+
+function showUpdateBanner(latestVer) {
+  const banner = document.getElementById('updateBanner');
+  if (!banner || _updateBannerDismissed) return;
+  document.getElementById('updateBannerTitle').textContent = `Update available — v${latestVer}`;
+  document.getElementById('updateBannerSub').textContent   = `You are on v${CURRENT_VERSION}. Download the latest version to stay up to date.`;
+  banner.style.display = 'block';
+}
+
+function dismissUpdateBanner() {
+  _updateBannerDismissed = true;
+  const banner = document.getElementById('updateBanner');
+  if (banner) banner.style.display = 'none';
+}
+
+async function checkForUpdates() {
+  const desc = document.getElementById('versionDesc');
+  const sub  = document.getElementById('versionSub');
+  const btn  = document.getElementById('updateBtn');
+  const dot  = document.getElementById('versionDot');
+  if (!desc) return;
+  desc.textContent = 'Checking for updates…';
+  if (sub) sub.style.display = 'none';
+  try {
+    const res = await fetch(VERSION_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error('Network error');
+    _latestVersion = (await res.text()).trim();
+    if (_latestVersion === CURRENT_VERSION) {
+      desc.textContent = `v${CURRENT_VERSION} — up to date ✓`;
+      if (dot) dot.style.background = 'var(--win, #3d7a4a)';
+      if (sub) sub.style.display = 'none';
+      if (btn) btn.style.display = 'none';
+    } else {
+      desc.textContent = `v${CURRENT_VERSION} → v${_latestVersion} available`;
+      if (dot) dot.style.background = '#c9a84c';
+      if (sub) { sub.textContent = 'A new version is ready to download.'; sub.style.display = ''; }
+      if (btn) btn.style.display = '';
+      showUpdateBanner(_latestVersion);
+    }
+  } catch {
+    desc.textContent = `v${CURRENT_VERSION} — could not check for updates`;
+    if (dot) dot.style.background = 'var(--text-dim)';
+    if (sub) sub.style.display = 'none';
+    if (btn) btn.style.display = 'none';
+  }
+}
+
+function doUpdate() {
+  if (!_latestVersion) return;
+  const a    = document.createElement('a');
+  a.href     = `https://github.com/Abscissa24/CCU/releases/download/${_latestVersion}/CCU.exe`;
+  a.download = 'CCU.exe';
+  a.click();
+}
+
+// UI Helpers: Toast / Alert / Confirm
+
+/** Shows a brief notification toast at the bottom of the screen. */
+function showToast(msg, type) {
+  const existing = document.getElementById('appToast');
+  if (existing) existing.remove();
+  const t     = document.createElement('div');
+  t.id        = 'appToast';
+  const color = type === 'gold' ? 'var(--gold)' : type === 'error' ? '#c06060' : 'var(--text)';
+  t.style.cssText = `position:fixed; bottom:28px; left:50%; transform:translateX(-50%) translateY(12px); background:var(--surface); border:1px solid var(--border2); border-radius:8px; padding:10px 22px; font-size:0.82rem; font-weight:500; color:${color}; box-shadow:0 8px 28px rgba(0,0,0,0.45); z-index:2000; opacity:0; transition:opacity 0.2s,transform 0.2s; pointer-events:none; white-space:nowrap;`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => { t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)'; });
+  setTimeout(() => {
+    t.style.opacity   = '0';
+    t.style.transform = 'translateX(-50%) translateY(8px)';
+    setTimeout(() => t.remove(), 220);
+  }, 2600);
+}
+
+/** Shows a simple alert modal with an OK button. */
+function showAlert(title, msg) {
+  document.getElementById('alertTitle').textContent = title;
+  document.getElementById('alertMsg').textContent   = msg;
+  document.getElementById('alertDialog').style.borderColor = 'var(--border2)';
+  const actions = document.getElementById('alertActions');
+  actions.innerHTML = '';
+  const ok = document.createElement('button');
+  ok.className = 'btn btn-gold';
+  ok.style.flex = '1';
+  ok.textContent = 'OK';
+  ok.onclick = closeAlertModal;
+  actions.appendChild(ok);
+  document.getElementById('alertOverlay').classList.add('open');
+  const h = e => {
+    if (e.key === 'Enter' || e.key === 'Escape') { closeAlertModal(); document.removeEventListener('keydown', h); }
+  };
+  document.addEventListener('keydown', h);
+}
+
+/** Shows a confirm modal with a Cancel and a custom confirm button. */
+function showConfirm(title, msg, confirmLabel, onConfirm) {
+  document.getElementById('alertTitle').textContent = title;
+  document.getElementById('alertMsg').textContent   = msg;
+  document.getElementById('alertDialog').style.borderColor = '#5a2020';
+  const actions = document.getElementById('alertActions');
+  actions.innerHTML = '';
+  const cancel  = document.createElement('button');
+  cancel.className  = 'btn btn-outline';
+  cancel.style.flex = '1';
+  cancel.textContent = 'Cancel';
+  cancel.onclick = closeAlertModal;
+  const confirm = document.createElement('button');
+  confirm.className  = 'btn btn-confirm-del';
+  confirm.style.flex = '1';
+  confirm.textContent = confirmLabel;
+  confirm.onclick = () => { closeAlertModal(); onConfirm(); };
+  actions.appendChild(cancel);
+  actions.appendChild(confirm);
+  document.getElementById('alertOverlay').classList.add('open');
+  const h = e => {
+    if (e.key === 'Enter')   { closeAlertModal(); onConfirm(); document.removeEventListener('keydown', h); }
+    else if (e.key === 'Escape') { closeAlertModal(); document.removeEventListener('keydown', h); }
+  };
+  document.addEventListener('keydown', h);
+}
+
+function closeAlertModal() {
+  document.getElementById('alertOverlay').classList.remove('open');
+}
+
+// Initialisation
+loadState();
+</script>
+</body>
+</html>
